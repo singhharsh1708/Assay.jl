@@ -63,7 +63,7 @@ export ess, ess_bulk, ess_tail, rhat, rhat_plain, mcse_mean, bfmi, autocov,
 
 # Layer 5: samplers
 include("samplers/interface.jl")
-export AbstractSampler, sample, init_state, step!, random_init
+export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, random_init
 
 include("samplers/mh.jl")
 export RandomWalkMH, AcceptanceRule, MetropolisRule, BarkerRule, accept_prob
@@ -76,7 +76,8 @@ include("samplers/hmc.jl")
 export HMC
 
 include("samplers/nuts.jl")
-export NUTS, UTurnCriterion, ClassicUTurn, GeneralizedUTurn, no_uturn
+export NUTS, UTurnCriterion, ClassicUTurn, GeneralizedUTurn, StrictGeneralizedUTurn,
+       tree_continues, merge_continues, uturn_ok
 
 include("samplers/advi.jl")
 export ADVI, VIResult, VariationalFamily, MeanField, FullRank, elbo, posterior_samples,
@@ -90,5 +91,10 @@ export SMC, SMCResult, TemperedModel, AbstractResampler, MultinomialResampling,
 # Reference problems with closed-form answers
 include("conjugate.jl")
 export beta_bernoulli, normal_normal, gamma_poisson
+
+# Calibration checks against the joint distribution
+include("calibration.jl")
+export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
+       rank_uniformity_test, geweke, GewekeResult
 
 end # module

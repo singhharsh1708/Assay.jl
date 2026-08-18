@@ -117,4 +117,9 @@ function _update_running_cov!(st::MHState)
     return st
 end
 
+function refresh!(model::Model, ::RandomWalkMH, st::MHState)
+    st.lp = logdensity(model, st.y)
+    return st
+end
+
 summary_of(st::MHState) = (step_size = exp(st.logscale), accept_rate = st.accepted / max(st.iter, 1))

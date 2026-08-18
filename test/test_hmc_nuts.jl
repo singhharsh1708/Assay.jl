@@ -70,7 +70,7 @@
 
     @testset "the U-turn criteria agree on an easy target" begin
         nn = SB.normal_normal(data_n; sigma = 0.8)
-        for crit in (SB.ClassicUTurn(), SB.GeneralizedUTurn())
+        for crit in (SB.ClassicUTurn(), SB.GeneralizedUTurn(), SB.StrictGeneralizedUTurn())
             chn = SB.sample(nn.model, SB.NUTS(; uturn = crit), 3000;
                             n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(17))
             check_conjugate(chn, :mu, nn.posterior.mu)

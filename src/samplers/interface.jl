@@ -33,6 +33,20 @@ whether adaptation should update.
 function step! end
 
 """
+    refresh!(model, sampler, state)
+
+Recompute the cached log density (and gradient) of `state` under a *different*
+model at the same position, leaving every adapted quantity alone.
+
+This exists for the Geweke test, which alternates between data sets: the
+transition kernel has to stay fixed across the sweep, because a kernel whose
+step size is re-chosen from the current position is not reversible and the test
+would then be measuring that violation rather than the sampler. Discovering
+exactly that is what made this function necessary.
+"""
+function refresh! end
+
+"""
     finish_warmup!(rng, model, sampler, state)
 
 Hook called once between warmup and sampling; the default does nothing.

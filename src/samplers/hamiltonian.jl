@@ -395,5 +395,18 @@ function finish_warmup_hamiltonian!(st::HamiltonianState, adapt_step_size::Bool)
     return st
 end
 
+"""
+    refresh_hamiltonian!(model, st, backend)
+
+Recompute the log density and gradient at the current position under a new
+model, keeping the step size and metric.
+"""
+function refresh_hamiltonian!(model::Model, st::HamiltonianState, backend::ADBackend)
+    lp, grad = logdensity_and_gradient(model, st.y; backend = backend)
+    st.lp = lp
+    st.grad = grad
+    return st
+end
+
 summary_of(st::HamiltonianState) = (step_size = st.step_size, n_divergent = st.n_divergent,
                                     metric = typeof(st.metric).name.name)

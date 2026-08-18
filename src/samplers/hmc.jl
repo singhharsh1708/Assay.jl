@@ -71,5 +71,8 @@ function step!(rng::AbstractRNG, model::Model, s::HMC, st::HamiltonianState, war
                         n_leapfrog = L, energy = energy, log_density = st.lp)
 end
 
+refresh!(model::Model, s::HMC, st::HamiltonianState) =
+    refresh_hamiltonian!(model, st, s.backend)
+
 finish_warmup!(rng, model, s::HMC, st::HamiltonianState) =
     finish_warmup_hamiltonian!(st, s.adapt_step_size)
