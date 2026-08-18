@@ -13,4 +13,8 @@ include("testutils.jl")
     include("test_hmc_nuts.jl")
     include("test_smc.jl")
     include("test_advi.jl")
+    include("test_calibration.jl")
+    include("test_negative_controls.jl")
+    include("test_geometries.jl")
+    include("test_turing.jl")
 end
