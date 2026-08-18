@@ -23,9 +23,13 @@ is `Beta(a + Σy, b + n - Σy)` and the evidence is a ratio of beta functions.
 function beta_bernoulli(data::AbstractVector; a::Real = 1.0, b::Real = 1.0)
     n = length(data)
     s = sum(data)
+    prior_model = Model((p = unit(),), theta -> logpdf(Beta(a, b), theta.p))
+    loglik = theta -> loglikelihood(Bernoulli(theta.p), data)
     model = Model((p = unit(),),
                   theta -> logpdf(Beta(a, b), theta.p) + loglikelihood(Bernoulli(theta.p), data))
     return (model = model,
+            tempered = TemperedModel(prior_model, loglik;
+                                     prior_rand = rng -> (p = rand(rng, Beta(a, b)),)),
             posterior = (p = Beta(a + s, b + n - s),),
             prior = (p = Beta(a, b),),
             logevidence = logbeta(a + s, b + n - s) - logbeta(a, b),
@@ -48,10 +52,14 @@ function normal_normal(data::AbstractVector; mu0::Real = 0.0, tau0::Real = 10.0,
     taun = sqrt(1 / prec)
     logZ = -n / 2 * log(2 * pi * sigma^2) - sum(abs2, data) / (2 * sigma^2) -
            mu0^2 / (2 * tau0^2) - 0.5 * log(tau0^2 * prec) + B^2 / (2 * prec)
+    prior_model = Model((mu = unconstrained(),), theta -> logpdf(Normal(mu0, tau0), theta.mu))
+    loglik = theta -> loglikelihood(Normal(theta.mu, sigma), data)
     model = Model((mu = unconstrained(),),
                   theta -> logpdf(Normal(mu0, tau0), theta.mu) +
                            loglikelihood(Normal(theta.mu, sigma), data))
     return (model = model,
+            tempered = TemperedModel(prior_model, loglik;
+                                     prior_rand = rng -> (mu = rand(rng, Normal(mu0, tau0)),)),
             posterior = (mu = Normal(mun, taun),),
             prior = (mu = Normal(mu0, tau0),),
             logevidence = logZ,
@@ -72,10 +80,14 @@ function gamma_poisson(data::AbstractVector; a::Real = 2.0, b::Real = 1.0)
     s = sum(data)
     logZ = -sum(x -> loggamma(x + 1), data) + loggamma(a + s) - loggamma(a) +
            a * log(b) - (a + s) * log(b + n)
+    prior_model = Model((lambda = positive(),), theta -> logpdf(Gamma(a, b), theta.lambda))
+    loglik = theta -> loglikelihood(Poisson(theta.lambda), data)
     model = Model((lambda = positive(),),
                   theta -> logpdf(Gamma(a, b), theta.lambda) +
                            loglikelihood(Poisson(theta.lambda), data))
     return (model = model,
+            tempered = TemperedModel(prior_model, loglik;
+                                     prior_rand = rng -> (lambda = rand(rng, Gamma(a, b)),)),
             posterior = (lambda = Gamma(a + s, b + n),),
             prior = (lambda = Gamma(a, b),),
             logevidence = logZ,

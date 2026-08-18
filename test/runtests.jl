@@ -11,4 +11,6 @@ include("testutils.jl")
     include("test_mh_conjugate.jl")
     include("test_diagnostics.jl")
     include("test_hmc_nuts.jl")
+    include("test_smc.jl")
+    include("test_advi.jl")
 end

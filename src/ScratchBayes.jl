@@ -78,6 +78,15 @@ export HMC
 include("samplers/nuts.jl")
 export NUTS, UTurnCriterion, ClassicUTurn, GeneralizedUTurn, no_uturn
 
+include("samplers/advi.jl")
+export ADVI, VIResult, VariationalFamily, MeanField, FullRank, elbo, posterior_samples,
+       variational_mean, variational_scale, variational_factor
+
+include("samplers/smc.jl")
+export SMC, SMCResult, TemperedModel, AbstractResampler, MultinomialResampling,
+       StratifiedResampling, SystematicResampling, ResidualResampling, resample,
+       ess_weights, AdaptiveRandomWalk, weighted_mean, weighted_std, weighted_quantile
+
 # Reference problems with closed-form answers
 include("conjugate.jl")
 export beta_bernoulli, normal_normal, gamma_poisson
