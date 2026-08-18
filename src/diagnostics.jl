@@ -175,20 +175,23 @@ function ess(x::AbstractMatrix{<:Real})
         meanacov = Statistics.mean(a[t + 1] for a in acovs)
         rho[t + 1] = 1 - (W - meanacov) / varplus
     end
-    # Geyer initial positive sequence on the paired sums, then made monotone.
+    # Geyer's initial positive sequence: pair consecutive autocorrelations,
+    # truncate at the first non-positive pair, then force the sequence to be
+    # monotone decreasing. Pairing is what makes the truncation reliable - the
+    # sum of two consecutive autocorrelations of a reversible chain is positive.
     pairs = Float64[]
-    t = 1
-    while t + 1 <= maxlag
-        p = rho[t + 1] + rho[t + 2]
+    t = 0
+    while 2t + 1 <= maxlag
+        p = rho[2t + 1] + rho[2t + 2]
         p <= 0 && break
         push!(pairs, p)
-        t += 2
+        t += 1
     end
     for k in 2:length(pairs)
         pairs[k] = min(pairs[k], pairs[k - 1])    # initial monotone sequence
     end
-    tau = -1 + 2 * sum(pairs; init = 0.0) + (isempty(pairs) ? 0.0 : 0.0)
-    tau = max(tau, 1 / log10(max(n * m, 11)))     # Stan's cap on ESS
+    tau = -1 + 2 * sum(pairs; init = 0.0)
+    tau = max(tau, 1 / log10(max(n * m, 11)))     # Stan's cap on the reported ESS
     return n * m / tau
 end
 ess(c::Chains, name::Symbol) = ess(c[name])

@@ -71,7 +71,8 @@ mutable struct MHState
     M2::Matrix{Float64}
 end
 
-function init_state(rng::AbstractRNG, model::Model, s::RandomWalkMH, y0::AbstractVector)
+function init_state(rng::AbstractRNG, model::Model, s::RandomWalkMH, y0::AbstractVector;
+                    n_warmup::Int = 0)
     d = dimension(model)
     L = s.cov === nothing ? Matrix{Float64}(I, d, d) : Matrix(cholesky(Symmetric(s.cov)).L)
     lp = logdensity(model, y0)

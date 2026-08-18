@@ -38,12 +38,12 @@ All draws of one parameter, chains concatenated.
 vec_of_draws(c::Chains, name::Symbol) = vec(c[name])
 
 """
-    stat(chains, name)
+    sampler_stat(chains, name)
 
 A per-draw sampler statistic as a `draws x chains` matrix, e.g. `:accept_prob`,
 `:divergent`, `:treedepth`, `:step_size`, `:energy`.
 """
-stat(c::Chains, name::Symbol) = c.stats[name]
+sampler_stat(c::Chains, name::Symbol) = c.stats[name]
 
 """
     divergences(chains)

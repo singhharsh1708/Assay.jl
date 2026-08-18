@@ -3,9 +3,9 @@ The sampler contract and the generic driver.
 
 A sampler implements three methods and nothing else:
 
-    init_state(rng, model, sampler, y0)          -> state
-    step!(rng, model, sampler, state, warmup)    -> (y, stats::NamedTuple)
-    finish_warmup!(rng, model, sampler, state)   -> state     (optional)
+    init_state(rng, model, sampler, y0; n_warmup)  -> state
+    step!(rng, model, sampler, state, warmup)      -> (y, stats::NamedTuple)
+    finish_warmup!(rng, model, sampler, state)     -> state     (optional)
 
 Everything else — chain allocation, initialisation, warmup bookkeeping, storing
 constrained draws, threading across chains, timing — lives in [`sample`](@ref)
@@ -15,9 +15,11 @@ random-walk Metropolis share this driver unchanged.
 abstract type AbstractSampler end
 
 """
-    init_state(rng, model, sampler, y0)
+    init_state(rng, model, sampler, y0; n_warmup)
 
-Build the sampler state at unconstrained starting point `y0`.
+Build the sampler state at unconstrained starting point `y0`. `n_warmup` is
+passed because adaptive samplers need to know the length of the warmup phase in
+advance in order to schedule it.
 """
 function init_state end
 
@@ -96,7 +98,7 @@ function sample(model::Model, sampler::AbstractSampler, n_draws::Int;
     Threads.@threads for c in 1:n_chains
         crng = Random.Xoshiro(seeds[c])
         y0 = inits[c] === nothing ? random_init(crng, model) : inits[c]
-        state = init_state(crng, model, sampler, y0)
+        state = init_state(crng, model, sampler, y0; n_warmup = n_warmup)
         stats_c = Dict{Symbol,Vector{Float64}}()
         row = 0
         for i in 1:n_warmup

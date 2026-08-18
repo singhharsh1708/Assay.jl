@@ -54,7 +54,7 @@ export Model, logdensity, logdensity_and_gradient, constrain, unconstrain, dimen
 
 # Layer 4: output container and diagnostics
 include("chains.jl")
-export Chains, ChainSummary, summarize, ndraws, nparams, nchains, stat, divergences,
+export Chains, ChainSummary, summarize, ndraws, nparams, nchains, sampler_stat, divergences,
        acceptance_rate
 
 include("diagnostics.jl")
@@ -67,6 +67,16 @@ export AbstractSampler, sample, init_state, step!, random_init
 
 include("samplers/mh.jl")
 export RandomWalkMH, AcceptanceRule, MetropolisRule, BarkerRule, accept_prob
+
+include("samplers/hamiltonian.jl")
+export AbstractMetric, UnitMetric, DiagMetric, DenseMetric, leapfrog, hamiltonian,
+       kinetic, velocity, rand_momentum
+
+include("samplers/hmc.jl")
+export HMC
+
+include("samplers/nuts.jl")
+export NUTS, UTurnCriterion, ClassicUTurn, GeneralizedUTurn, no_uturn
 
 # Reference problems with closed-form answers
 include("conjugate.jl")
