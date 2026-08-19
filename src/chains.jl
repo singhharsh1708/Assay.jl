@@ -66,7 +66,7 @@ sampler_stat(c::Chains, name::Symbol) = c.stats[name]
     divergences(chains)
 
 Number of divergent transitions across all chains, or `0` for samplers that do
-not report them.
+not report them. Use `haskey(chains.stats, :divergent)` to tell the two apart.
 """
 divergences(c::Chains) = haskey(c.stats, :divergent) ? Int(sum(c.stats[:divergent])) : 0
 
@@ -122,7 +122,12 @@ function summarize(c::Chains)
         rh[j] = rhat(x)
         mc[j] = s[j] / sqrt(max(eb[j], 1.0))
     end
-    extra = Dict{Symbol,Any}(:divergences => divergences(c), :acceptance_rate => acceptance_rate(c))
+    # Only report a statistic the sampler actually produced. Variational draws
+    # have no acceptance probability, and printing `NaN` for one invites the
+    # reader to wonder whether something failed.
+    extra = Dict{Symbol,Any}()
+    haskey(c.stats, :divergent) && (extra[:divergences] = divergences(c))
+    haskey(c.stats, :accept_prob) && (extra[:acceptance_rate] = acceptance_rate(c))
     haskey(c.info, :time_seconds) && (extra[:time_seconds] = c.info[:time_seconds])
     return ChainSummary(copy(c.names), m, s, mc, q1, q2, q3, eb, et, rh, extra)
 end
@@ -135,11 +140,12 @@ function Base.show(io::IO, s::ChainSummary)
                 String(s.names[i]), s.mean[i], s.std[i], s.mcse[i], s.q025[i], s.q500[i],
                 s.q975[i], s.ess_bulk[i], s.ess_tail[i], s.rhat[i])
     end
-    if haskey(s.extra, :divergences)
-        @printf(io, "divergences: %d   mean accept: %.3f", s.extra[:divergences], s.extra[:acceptance_rate])
-        haskey(s.extra, :time_seconds) && @printf(io, "   time: %.2fs", s.extra[:time_seconds])
-        println(io)
-    end
+    parts = String[]
+    haskey(s.extra, :divergences) && push!(parts, @sprintf("divergences: %d", s.extra[:divergences]))
+    haskey(s.extra, :acceptance_rate) &&
+        push!(parts, @sprintf("mean accept: %.3f", s.extra[:acceptance_rate]))
+    haskey(s.extra, :time_seconds) && push!(parts, @sprintf("time: %.2fs", s.extra[:time_seconds]))
+    isempty(parts) || println(io, join(parts, "   "))
 end
 
 function Base.show(io::IO, c::Chains)

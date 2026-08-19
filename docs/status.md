@@ -43,10 +43,12 @@ gradient-based samplers: 1.1 standard errors.
 likelihood for all three conjugate models: within 0.03 nats at 4000 particles,
 with the error falling as `1 / sqrt(N)` over 250 to 8000 particles.
 
-**Calibration.** Simulation based calibration over 200 replications for all
-three conjugate models with NUTS, and for Beta-Bernoulli with random walk
-Metropolis: chi-square p values from 0.39 to 0.96. The Geweke joint distribution
-test on the same models with both samplers: all `|z| < 2`.
+**Calibration.** Simulation based calibration for all three conjugate models
+with NUTS, and for Beta-Bernoulli with random walk Metropolis: chi-square p
+values from 0.39 to 0.96. The test suite uses 200 replications for NUTS and 150
+for the random walk, which needs heavier thinning per replication; the tables in
+[results.md](results.md) use 200 throughout. The Geweke joint distribution test
+on the same models with both samplers: all `|z| < 2`.
 
 **Negative controls.** Removing the Jacobian is caught by the conjugate check
 (17 standard errors), by simulation based calibration (p = 1e-5) and by Geweke
@@ -85,9 +87,12 @@ p values above 0.74.
 **Hard geometries.** Neal's funnel, a `rho = 0.95` Gaussian and a banana, each
 against closed-form marginals. Where the sampler fails, the failure is asserted
 rather than hidden: the centred funnel is asserted to produce divergences and to
-understate the standard deviation of `v`, and the default-settings banana is
-asserted to produce more than 100 divergences and to understate the standard
-deviation of `x2` by more than 10%.
+understate the standard deviation of `v`; the default-settings banana is asserted
+to produce more than 100 divergences and to understate the standard deviation of
+`x2` by more than 10%; and the banana at target acceptance 0.95 is asserted to
+produce almost no divergences *and* to remain more than 3% low, because a clean
+divergence count is not evidence of a correct answer. Only at 0.99 is recovery
+asserted.
 
 ## Inferred
 

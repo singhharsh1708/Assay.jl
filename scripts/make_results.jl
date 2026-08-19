@@ -404,15 +404,26 @@ function negative_control_section()
     for (label, factor) in (("gradient scaled by 1.1", 1.1), ("gradient scaled by 3", 3.0))
         c = AS.sample(ref.model, AS.NUTS(; backend = ScaledGradient(factor)), 20_000;
                       n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(2))
-        say("| ", label, " | mean z = ", fmt(zmean(c[:lambda], exact), 1), ", ESS per gradient ",
-            fmt(eff(c), 5), " against ", fmt(eff(good), 5), " | ", fmt(AS.rhat(c[:lambda]), 3),
-            " | efficiency and convergence diagnostics |")
+        ratio = eff(good) / eff(c)
+        rh = AS.rhat(c[:lambda])
+        # Report what actually detected it rather than a fixed label: the mild
+        # error is detected by nothing at all, which is the finding.
+        detector = if rh > 1.01
+            "R-hat, and the effective sample size per gradient"
+        elseif ratio > 2
+            "the effective sample size per gradient only"
+        else
+            "**nothing**"
+        end
+        say("| ", label, " | mean z = ", fmt(zmean(c[:lambda], exact), 1),
+            ", ESS per gradient ", fmt(ratio, 1), " times lower | ", fmt(rh, 3), " | ",
+            detector, " |")
     end
     never = AS.sample(ref.model, AS.NUTS(; uturn = NeverUTurn(), max_treedepth = 6), 20_000;
                       n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(4))
     say("| U-turn criterion that never fires | mean z = ", fmt(zmean(never[:lambda], exact), 1),
-        ", ESS per gradient ", fmt(eff(never), 5), " against ", fmt(eff(good), 5), " | ",
-        fmt(AS.rhat(never[:lambda]), 3), " | efficiency only |")
+        ", ESS per gradient ", fmt(eff(good) / eff(never), 1), " times lower | ",
+        fmt(AS.rhat(never[:lambda]), 3), " | the effective sample size per gradient only |")
     say("\nThe gradient scaled by 3 is worth reading carefully. Its `z` of about -3",
         " is not evidence of bias: the effective sample size has collapsed by four",
         " orders of magnitude, so the standard error in the denominator is itself",

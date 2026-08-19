@@ -16,8 +16,8 @@ the right ones.
 No inference library is a dependency. ForwardDiff supplies gradients, with
 ReverseDiff available through a package extension; the densities, the samplers,
 the bijectors, the effective sample size and R-hat estimators are all in
-[`src/`](src/). Distributions.jl and Turing.jl appear in the test suite only, as
-oracles. Julia 1.10 or later; MIT licensed.
+[`src/`](src/). Distributions.jl, Turing.jl and MCMCChains appear in the test
+suite only, as oracles. Julia 1.10 or later; MIT licensed.
 
 ## Verification first
 
@@ -95,22 +95,24 @@ is the cheapest demonstration of that here.
 
 ### Negative controls
 
-A test suite that only ever passes proves nothing. Four deliberate bugs, each
-installed through a documented extension point rather than by editing the
-library:
+A test suite that only ever passes proves nothing. Four kinds of deliberate bug
+in five configurations, each installed through a documented extension point - a
+transform, an acceptance rule, a gradient backend, a termination criterion -
+rather than by editing the library:
 
 | control | effect | caught by |
 |---|---|---|
 | Jacobian term removed | targets `Gamma(a + S - 1, b + n)`, 17 standard errors off | conjugate check, SBC, Geweke |
 | Metropolis correction removed | posterior mean `5.8e23` against a true 3.05 | anything |
-| gradient scaled by 1.1 | nothing measurable | nothing - see below |
-| gradient scaled by 3 | effective sample size per gradient falls 16000-fold | R-hat and efficiency |
-| U-turn criterion that never fires | 10 times fewer effective draws per gradient | efficiency only |
+| gradient scaled by 1.1 | nothing measurable | nothing at all - see below |
+| gradient scaled by 3 | effective sample size per gradient falls by four orders of magnitude | R-hat, and the efficiency numbers |
+| U-turn criterion that never fires | 10 times fewer effective draws per gradient | the efficiency numbers only |
 
-The third and fifth rows are findings, not gaps. The leapfrog map is reversible
-and volume preserving whatever force it integrates, and the acceptance step uses
-the true log density, so an error in the gradient or in the stopping rule cannot
-change the invariant distribution. It can only waste work.
+The mild gradient error and the disabled U-turn rule are findings, not gaps in
+the suite. The leapfrog map is reversible and volume preserving whatever force it
+integrates, and the acceptance step uses the true log density, so an error in the
+gradient or in the stopping rule cannot change the invariant distribution. It can
+only waste work.
 
 ### Independent oracles
 
@@ -122,7 +124,7 @@ matches the AR(1) closed form at `r = 0, 0.5, 0.9` and, importantly, at
 `r = -0.5`, where the antithetic chain carries more information than its length
 and a naive clamp at `n` would silently truncate it.
 
-### Two real bugs this suite caught
+### Three real bugs this suite caught
 
 Recorded because they are the argument for the suite existing.
 
@@ -134,6 +136,9 @@ Recorded because they are the argument for the suite existing.
    trajectory was grown. Every diagnostic looked healthy while the standard
    deviation of a `rho = 0.95` Gaussian came out 2 to 4% low, `z = -7`. Found by
    checking a hard geometry against its closed form, and now a regression test.
+3. The stick-breaking simplex map could return a final component of `-1e-17` for
+   extreme proposals, so its output was not quite a point of the simplex. Found
+   by a sum-product network refusing a negative mixture weight during sampling.
 
 ## What is implemented
 
@@ -187,6 +192,11 @@ calibration of the whole model, which is what exercises the simplex transform
 and its Jacobian end to end.
 
 ## Quick start
+
+Assay exports its own `Normal`, `Beta`, `Gamma` and so on, so `using Assay`
+together with `using Distributions` needs one of them qualified. The test suite
+does exactly that, with `Distributions.Normal` for the oracle and the bare name
+for this package.
 
 ```julia
 using Assay
@@ -246,6 +256,7 @@ density and a gradient on `R^n`.
 
 ```
 src/
+  Assay.jl              module, include order, exports
   utils.jl              logistic, logit, log1pexp, logsumexp
   densities.jl          hand-written log densities, samplers, cdfs
   transforms.jl         bijectors and their log Jacobian determinants
@@ -262,22 +273,22 @@ src/
     mh.jl  hmc.jl  nuts.jl  smc.jl  advi.jl
 ```
 
-Adding a sampler is adding a file in `samplers/`: three methods and no changes
-anywhere else.
+Adding a sampler is adding a file in `samplers/`: two required methods,
+`init_state` and `step!`, two optional hooks, and no changes anywhere else.
 
 ## Running things
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.test()'                  # full suite, about 4 minutes
+julia --project=. -e 'using Pkg; Pkg.test()'                  # full suite, 3 to 7 minutes
 julia --project=scripts -t 4 scripts/make_results.jl          # regenerates docs/results.md
 julia --project=bench -t 4 bench/benchmarks.jl                # regenerates docs/benchmarks.md
 ```
 
 ## Test suite
 
-676 assertions, about 7 minutes on 4 threads - of which roughly 3 are Julia
-recompiling after the suite loads Turing and ReverseDiff, which is why those two
-files are included last:
+679 assertions, 3 to 7 minutes on 4 threads. The spread is Julia recompiling
+after the suite loads Turing and ReverseDiff, which is also why those two files
+are included last: loading them first pushes the whole suite to 17 minutes.
 
 | file | what it establishes |
 |---|---|

@@ -79,11 +79,11 @@ The number of kernel steps per sweep is 5 for NUTS and 30 for the random walk. T
 
 | sampler | sd of x1 (exact 1) | z | correlation (exact 0.95) | ESS | ESS per second |
 |---|---:|---:|---:|---:|---:|
-| RWM, isotropic proposal | 1.0178 | 1.79 | 0.9520 | 2399 | 5690 |
-| RWM, adapted covariance | 0.9958 | -0.73 | 0.9499 | 12654 | 67686 |
-| NUTS, unit metric | 1.0021 | 0.29 | 0.9502 | 8254 | 1976 |
-| NUTS, diagonal metric | 0.9951 | -0.69 | 0.9495 | 8384 | 8762 |
-| NUTS, dense metric | 0.9947 | -1.08 | 0.9488 | 38616 | 73639 |
+| RWM, isotropic proposal | 1.0178 | 1.79 | 0.9520 | 2399 | 6453 |
+| RWM, adapted covariance | 0.9958 | -0.73 | 0.9499 | 12654 | 67239 |
+| NUTS, unit metric | 1.0021 | 0.29 | 0.9502 | 8254 | 5496 |
+| NUTS, diagonal metric | 0.9951 | -0.69 | 0.9495 | 8384 | 16911 |
+| NUTS, dense metric | 0.9947 | -1.08 | 0.9488 | 38616 | 107143 |
 
 ![traces on the correlated Gaussian](figures/correlated_traces.png)
 
@@ -128,9 +128,9 @@ The broken sampler is not merely wrong: omitting `log|dlambda/dy| = y` divides t
 | control | effect | R-hat | detected by |
 |---|---|---:|---|
 | Metropolis correction removed (always accept) | posterior mean 5.83e+23 against a true 3.05 | 2.28 | anything |
-| gradient scaled by 1.1 | mean z = 0.6, ESS per gradient 0.16686 against 0.16209 | 1.000 | efficiency and convergence diagnostics |
-| gradient scaled by 3 | mean z = -3.2, ESS per gradient 0.00001 against 0.16209 | 1.110 | efficiency and convergence diagnostics |
-| U-turn criterion that never fires | mean z = -0.0, ESS per gradient 0.01544 against 0.16209 | 1.000 | efficiency only |
+| gradient scaled by 1.1 | mean z = 0.6, ESS per gradient 1.0 times lower | 1.000 | **nothing** |
+| gradient scaled by 3 | mean z = -3.2, ESS per gradient 17470.8 times lower | 1.110 | R-hat, and the effective sample size per gradient |
+| U-turn criterion that never fires | mean z = -0.0, ESS per gradient 10.5 times lower | 1.000 | the effective sample size per gradient only |
 
 The gradient scaled by 3 is worth reading carefully. Its `z` of about -3 is not evidence of bias: the effective sample size has collapsed by four orders of magnitude, so the standard error in the denominator is itself unreliable, and R-hat is what flags the run. Scaled by 1.1 the sampler is indistinguishable from the correct one on every measure. An error in the gradient is an efficiency bug, and only a large one is visible at all.
 

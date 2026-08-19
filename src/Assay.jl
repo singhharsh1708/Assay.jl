@@ -7,7 +7,7 @@ Monte Carlo, mean-field ADVI, and the diagnostics needed to tell whether any of
 it is right.
 
 No inference library is a dependency. ForwardDiff supplies gradients; everything
-else — densities, samplers, effective sample size, R-hat — is in `src/`.
+else - densities, samplers, effective sample size, R-hat - is in `src/`.
 
 The layering is strict and one-directional:
 

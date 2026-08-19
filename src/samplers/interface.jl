@@ -1,14 +1,15 @@
 """
 The sampler contract and the generic driver.
 
-A sampler implements three methods and nothing else:
+A sampler implements two methods, plus two optional hooks:
 
-    init_state(rng, model, sampler, y0; n_warmup)  -> state
-    step!(rng, model, sampler, state, warmup)      -> (y, stats::NamedTuple)
-    finish_warmup!(rng, model, sampler, state)     -> state     (optional)
+    init_state(rng, model, sampler, y0; n_warmup)  -> state       (required)
+    step!(rng, model, sampler, state, warmup)      -> (y, stats)  (required)
+    finish_warmup!(rng, model, sampler, state)     -> state       (optional)
+    refresh!(model, sampler, state)                -> state       (optional)
 
-Everything else — chain allocation, initialisation, warmup bookkeeping, storing
-constrained draws, threading across chains, timing — lives in [`sample`](@ref)
+Everything else - chain allocation, initialisation, warmup bookkeeping, storing
+constrained draws, threading across chains, timing - lives in [`sample`](@ref)
 here. That is the boundary that lets a new sampler be a new file: HMC, NUTS and
 random-walk Metropolis share this driver unchanged.
 """
