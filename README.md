@@ -1,5 +1,8 @@
 # Assay.jl
 
+[![CI](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Bayesian inference implemented from first principles in Julia: MCMC (random walk
 Metropolis-Hastings, HMC, NUTS), sequential Monte Carlo, mean-field and
 full-rank ADVI, a model interface with a hand-written transform layer, and the
