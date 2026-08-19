@@ -299,21 +299,41 @@ function geometry_section()
     say("### Banana, x2 | x1 ~ Normal(b (x1^2 - 100), 1) with b = 0.03\n")
     say("Exact marginals: `x1 ~ Normal(0, 10)` and `Var[x2] = 1 + 2 b^2 100^2 = ",
         fmt(sd2^2, 2), "`.\n")
-    say("| configuration | sd of x1 (exact 10) | sd of x2 (exact ", fmt(sd2, 3),
+    say("Read the 0.95 row against the 0.99 row. Raising the target acceptance",
+        " rate from the default to 0.95 removes almost all the divergences, so the",
+        " run looks clean, and the standard deviation of x2 is still wrong by 5 to 9",
+        " percent - 6 to 12 Monte Carlo standard errors, across several seeds. Only",
+        " at 0.99 does the sampler actually recover the marginal. The absence of",
+        " divergences is not evidence of correctness, and this is the cheapest",
+        " demonstration of that in the repository.\n")
+    # Three seeds per configuration: one run of the 0.95 case happens to land on
+    # the right answer, and a table that showed only that run would contradict
+    # the paragraph above it.
+    say("| configuration | sd of x1 (exact 10) | sd of x2 over 3 seeds (exact ", fmt(sd2, 3),
         ") | divergences | ESS of x2 |")
     say("|---|---:|---:|---:|---:|")
     bplots = Any[]
+    seeds = (41, 77, 123)
     for (label, spl) in (("NUTS, default", AS.NUTS()),
                          ("NUTS, dense metric", AS.NUTS(; metric = :dense)),
-                         ("NUTS, target accept 0.95", AS.NUTS(; target_accept = 0.95)))
-        chn = AS.sample(banana(b), spl, 10_000; n_warmup = 1000, n_chains = 4,
-                        rng = Random.Xoshiro(41))
-        x1 = chn[Symbol("x[1]")]
-        x2 = chn[Symbol("x[2]")]
-        say("| ", label, " | ", fmt(std(vec(x1)), 3), " | ", fmt(std(vec(x2)), 3), " | ",
-            AS.divergences(chn), " | ", fmt(AS.ess_bulk(x2), 0), " |")
-        div = vec(AS.sampler_stat(chn, :divergent)) .> 0
-        v1 = vec(x1); v2 = vec(x2)
+                         ("NUTS, target accept 0.95", AS.NUTS(; target_accept = 0.95)),
+                         ("NUTS, target accept 0.99", AS.NUTS(; target_accept = 0.99)))
+        sd1s = Float64[]; sd2s = Float64[]; divs = Int[]; esss = Float64[]
+        local first_chain = nothing
+        for sd in seeds
+            chn = AS.sample(banana(b), spl, 10_000; n_warmup = 2000, n_chains = 4,
+                            rng = Random.Xoshiro(sd))
+            push!(sd1s, std(vec(chn[Symbol("x[1]")])))
+            push!(sd2s, std(vec(chn[Symbol("x[2]")])))
+            push!(divs, AS.divergences(chn))
+            push!(esss, AS.ess_bulk(chn[Symbol("x[2]")]))
+            sd == first(seeds) && (first_chain = chn)
+        end
+        say("| ", label, " | ", fmt(Statistics.mean(sd1s), 3), " | ", fmt(minimum(sd2s), 3),
+            " to ", fmt(maximum(sd2s), 3), " | ", minimum(divs), " to ", maximum(divs), " | ",
+            fmt(Statistics.mean(esss), 0), " |")
+        div = vec(AS.sampler_stat(first_chain, :divergent)) .> 0
+        v1 = vec(first_chain[Symbol("x[1]")]); v2 = vec(first_chain[Symbol("x[2]")])
         p = scatter(v1[.!div], v2[.!div]; ms = 1.2, mc = :steelblue, msw = 0, label = "draws",
                     xlabel = "x1", ylabel = "x2", title = label, xlims = (-35, 35), ylims = (-5, 25))
         any(div) && scatter!(p, v1[div], v2[div]; ms = 2.4, mc = :firebrick, msw = 0,
@@ -327,11 +347,11 @@ function geometry_section()
     x1 = vec(chn[:x1])
     x2 = vec(chn[:z]) .+ b .* (x1 .^ 2 .- 100)
     say("| reparameterised, x2 = z + b(x1^2 - 100) | ", fmt(std(x1), 3), " | ", fmt(std(x2), 3),
-        " | ", AS.divergences(chn), " | - |")
+        " (1 seed) | ", AS.divergences(chn), " | - |")
     p = scatter(x1, x2; ms = 1.2, mc = :seagreen, msw = 0, label = "draws", xlabel = "x1",
                 ylabel = "x2", title = "reparameterised", xlims = (-35, 35), ylims = (-5, 25))
     push!(bplots, p)
-    plot(bplots...; layout = (2, 2), size = (1300, 800))
+    plot(bplots...; layout = (2, 3), size = (1500, 800))
     savefig(joinpath(FIG, "banana.png"))
     say("\n![banana](figures/banana.png)\n")
 end

@@ -76,10 +76,22 @@ measurable rather than illustrative.
 
 ![Neal's funnel](docs/figures/funnel.png)
 
-Red points are divergent transitions. The same story holds for the banana, where
-the default step size understates `sd(x2)` by 21% with 427 divergences, a dense
-metric does not help because the problem is local curvature, and either a
-smaller step size or a reparameterisation fixes it.
+Red points are divergent transitions. The banana tells a sharper version of the
+same story, over three seeds each:
+
+| configuration | sd of x2 (exact 4.359) | divergences |
+|---|---:|---:|
+| NUTS, default | 3.37 to 3.68 | 234 to 656 |
+| NUTS, dense metric | 3.09 to 5.60 | 198 to 1746 |
+| NUTS, target accept 0.95 | 3.97 to 4.12 | 1 to 22 |
+| NUTS, target accept 0.99 | 4.27 to 4.52 | 0 |
+
+A dense metric does not help, because the problem is local curvature rather than
+global scale. Raising the target acceptance rate to 0.95 removes almost every
+divergence - the run *looks* clean - and still leaves the answer wrong by 6 to 12
+Monte Carlo standard errors. Only at 0.99, or after reparameterising, does it
+recover. A clean divergence count is not evidence of a correct answer, and this
+is the cheapest demonstration of that here.
 
 ### Negative controls
 

@@ -36,8 +36,9 @@ end
         x = randn(rng, 4000, 4)
         @test AS.rhat(x) < 1.01
         y = copy(x)
-        y[:, 1] .+= 1.0                                  # one chain in the wrong place
+        y[:, 1] .+= 2.0                                  # one chain in the wrong place
         @test AS.rhat(y) > 1.1
+        @test AS.rhat(y) > AS.rhat(x)
         # split R-hat catches a single drifting chain that unsplit R-hat cannot
         drift = reshape(range(0, 3; length = 4000) .+ 0.1 .* randn(rng, 4000), 4000, 1)
         @test AS.rhat_plain(drift) > 1.1

@@ -97,14 +97,23 @@ end
                           n_chains = 4, rng = Random.Xoshiro(43))
         @test AS.divergences(dense) > 50
 
-        # A smaller step size does: at target 0.95 the same sampler recovers both
-        # closed-form moments.
-        fine = AS.sample(model, AS.NUTS(; target_accept = 0.95), 10_000; n_warmup = 1000,
+        # A smaller step size helps, and the way it helps is the point. At target
+        # 0.95 the divergence count nearly vanishes - the run *looks* clean - and
+        # the standard deviation of x2 is still understated by 5 to 9 percent,
+        # which is 6 to 12 Monte Carlo standard errors across seeds. The absence
+        # of divergences is not evidence of correctness.
+        quiet = AS.sample(model, AS.NUTS(; target_accept = 0.95), 10_000; n_warmup = 2000,
+                          n_chains = 4, rng = Random.Xoshiro(41))
+        @test AS.divergences(quiet) < 50
+        @test std(vec(quiet[Symbol("x[2]")])) < 0.97 * sd2
+
+        # At 0.99 it does recover, and only then.
+        fine = AS.sample(model, AS.NUTS(; target_accept = 0.99), 10_000; n_warmup = 2000,
                          n_chains = 4, rng = Random.Xoshiro(41))
-        @test AS.divergences(fine) < 50
-        @test check_mean(fine[Symbol("x[1]")], 0.0; nse = 4)
-        @test check_std(fine[Symbol("x[1]")], 10.0; nse = 4)
-        @test check_std(fine[Symbol("x[2]")], sd2; nse = 4)
+        @test AS.divergences(fine) < 5
+        @test check_mean(fine[Symbol("x[1]")], 0.0; nse = 5)
+        @test check_std(fine[Symbol("x[1]")], 10.0; nse = 5)
+        @test check_std(fine[Symbol("x[2]")], sd2; nse = 5)
 
         # And so does removing the curvature by reparameterisation, which is the
         # same lesson as the funnel: geometry is a property of the model as

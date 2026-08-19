@@ -79,11 +79,11 @@ The number of kernel steps per sweep is 5 for NUTS and 30 for the random walk. T
 
 | sampler | sd of x1 (exact 1) | z | correlation (exact 0.95) | ESS | ESS per second |
 |---|---:|---:|---:|---:|---:|
-| RWM, isotropic proposal | 1.0178 | 1.79 | 0.9520 | 2399 | 4565 |
-| RWM, adapted covariance | 0.9958 | -0.73 | 0.9499 | 12654 | 77799 |
-| NUTS, unit metric | 1.0021 | 0.29 | 0.9502 | 8254 | 3517 |
-| NUTS, diagonal metric | 0.9951 | -0.69 | 0.9495 | 8384 | 11193 |
-| NUTS, dense metric | 0.9947 | -1.08 | 0.9488 | 38616 | 62041 |
+| RWM, isotropic proposal | 1.0178 | 1.79 | 0.9520 | 2399 | 5690 |
+| RWM, adapted covariance | 0.9958 | -0.73 | 0.9499 | 12654 | 67686 |
+| NUTS, unit metric | 1.0021 | 0.29 | 0.9502 | 8254 | 1976 |
+| NUTS, diagonal metric | 0.9951 | -0.69 | 0.9495 | 8384 | 8762 |
+| NUTS, dense metric | 0.9947 | -1.08 | 0.9488 | 38616 | 73639 |
 
 ![traces on the correlated Gaussian](figures/correlated_traces.png)
 
@@ -103,12 +103,15 @@ The marginal of `v` is exactly its prior, `Normal(0, 3)`, which is what makes th
 
 Exact marginals: `x1 ~ Normal(0, 10)` and `Var[x2] = 1 + 2 b^2 100^2 = 19.00`.
 
-| configuration | sd of x1 (exact 10) | sd of x2 (exact 4.359) | divergences | ESS of x2 |
+Read the 0.95 row against the 0.99 row. Raising the target acceptance rate from the default to 0.95 removes almost all the divergences, so the run looks clean, and the standard deviation of x2 is still wrong by 5 to 9 percent - 6 to 12 Monte Carlo standard errors, across several seeds. Only at 0.99 does the sampler actually recover the marginal. The absence of divergences is not evidence of correctness, and this is the cheapest demonstration of that in the repository.
+
+| configuration | sd of x1 (exact 10) | sd of x2 over 3 seeds (exact 4.359) | divergences | ESS of x2 |
 |---|---:|---:|---:|---:|
-| NUTS, default | 9.380 | 3.448 | 427 | 964 |
-| NUTS, dense metric | 9.305 | 3.384 | 587 | 862 |
-| NUTS, target accept 0.95 | 10.048 | 4.354 | 6 | 4113 |
-| reparameterised, x2 = z + b(x1^2 - 100) | 10.002 | 4.432 | 0 | - |
+| NUTS, default | 9.306 | 3.366 to 3.682 | 234 to 656 | 903 |
+| NUTS, dense metric | 9.758 | 3.094 to 5.596 | 198 to 1746 | 1211 |
+| NUTS, target accept 0.95 | 9.773 | 3.965 to 4.117 | 1 to 22 | 5003 |
+| NUTS, target accept 0.99 | 10.036 | 4.269 to 4.517 | 0 to 0 | 4901 |
+| reparameterised, x2 = z + b(x1^2 - 100) | 10.002 | 4.432 (1 seed) | 0 | - |
 
 ![banana](figures/banana.png)
 
