@@ -111,8 +111,8 @@ turing_run(model, seed; n = 2000, chains = 4) =
         data = [rand(rng) < 0.35 ? 1 : 0 for _ in 1:60]
         chn = turing_run(turing_bernoulli(data), 4)
         x = Array(chn[:p])
-        their_ess = MCMCChains.ess(chn)[:p][1]
-        their_rhat = MCMCChains.rhat(chn)[:p][1]
+        their_ess = first(MCMCChains.ess(chn)[:, :ess])
+        their_rhat = first(MCMCChains.rhat(chn)[:, :rhat])
         # Same estimators (rank-normalised split R-hat, Geyer-truncated ESS),
         # independently implemented: they should land within a few percent.
         @test SB.ess_bulk(x) ≈ their_ess rtol = 0.1

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['1.10', '1.11']
+        os: [ubuntu-latest]
+        include:
+          - version: '1.10'
+            os: macOS-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+        env:
+          JULIA_NUM_THREADS: '4'
+
+  quality:
+    name: Formatting and docstrings
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+      - uses: julia-actions/cache@v2
+      - name: Every exported name has a docstring
+        run: |
+          julia --project=. -e '
+            using Pkg; Pkg.instantiate()
+            using ScratchBayes
+            missing_docs = Symbol[]
+            for name in names(ScratchBayes)
+                name === :ScratchBayes && continue
+                doc = string(Base.Docs.doc(Base.Docs.Binding(ScratchBayes, name)))
+                occursin("No documentation found", doc) && push!(missing_docs, name)
+            end
+            if !isempty(missing_docs)
+                error("exported without a docstring: " * join(missing_docs, ", "))
+            end
+            println("all ", length(names(ScratchBayes)) - 1, " exported names documented")'

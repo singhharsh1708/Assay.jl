@@ -14,8 +14,25 @@ struct Chains
     info::Dict{Symbol,Any}
 end
 
+"""
+    ndraws(chains)
+
+Number of stored draws per chain.
+"""
 ndraws(c::Chains) = size(c.value, 1)
+
+"""
+    nparams(chains)
+
+Number of scalar parameter columns.
+"""
 nparams(c::Chains) = size(c.value, 2)
+
+"""
+    nchains(chains)
+
+Number of chains.
+"""
 nchains(c::Chains) = size(c.value, 3)
 
 """

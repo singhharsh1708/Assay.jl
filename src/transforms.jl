@@ -29,6 +29,23 @@ Dimension of the unconstrained vector consumed by `t`.
 function udim end
 
 """
+    to_constrained(t, y)
+
+Map an unconstrained vector to the constrained value, returning
+`(x, log|det dx/dy|)`. The Jacobian term is returned alongside the value because
+the two share intermediate quantities for every non-elementwise transform.
+"""
+function to_constrained end
+
+"""
+    to_unconstrained(t, x)
+
+Inverse of [`to_constrained`](@ref). Throws a `DomainError` if `x` is outside
+the constrained set.
+"""
+function to_unconstrained end
+
+"""
     cdim(t)
 
 Number of scalars in the constrained value produced by `t`.

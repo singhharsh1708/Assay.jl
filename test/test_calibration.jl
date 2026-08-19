@@ -18,8 +18,11 @@
 
     @testset "calibration holds for the random walk too" begin
         prob = SB.conjugate_problem(SB.beta_bernoulli, 20; a = 1.0, b = 1.0)
+        # The random walk needs heavier thinning than NUTS to give near-independent
+        # draws; too little and the rank histogram is bathtub-shaped even though
+        # the sampler is correct.
         res = SB.sbc(Random.Xoshiro(5), prob, SB.RandomWalkMH(); n_sims = 150, n_draws = 64,
-                     thin = 20, n_warmup = 1000)
+                     thin = 60, n_warmup = 1000)
         @test all(res.pvalue .> 0.01)
     end
 

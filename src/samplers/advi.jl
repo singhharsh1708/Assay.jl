@@ -307,6 +307,22 @@ function sample(model::Model, spl::ADVI; rng::AbstractRNG = Random.default_rng()
 end
 
 """
+    elbo_with_error(result; rng, n_samples = 20_000, batches = 20)
+
+Estimate of the ELBO at the fitted parameters together with its Monte Carlo
+standard error, computed from `batches` independent blocks. The single-number
+ELBO carries enough noise (around 0.05 nats for a two-dimensional target at
+2000 draws) to appear to violate its own bound, so anywhere the bound itself is
+the claim being made, this is the function to use.
+"""
+function elbo_with_error(r::VIResult; rng::AbstractRNG = Random.default_rng(),
+                         n_samples::Int = 20_000, batches::Int = 20)
+    per = max(div(n_samples, batches), 1)
+    est = [elbo(r.model, r.family, r.params, rng, per) for _ in 1:batches]
+    return Statistics.mean(est), Statistics.std(est) / sqrt(batches)
+end
+
+"""
     posterior_samples(result, n; rng)
 
 Draw `n` samples from `q`, mapped to the constrained space and returned as

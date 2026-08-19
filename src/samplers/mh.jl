@@ -22,6 +22,13 @@ detailed balance with a symmetric proposal may be used.
 abstract type AcceptanceRule end
 
 """
+    accept_prob(rule, logratio)
+
+Acceptance probability for a proposal whose log density ratio is `logratio`.
+"""
+function accept_prob end
+
+"""
     MetropolisRule()
 
 `α = min(1, exp(Δ))`. The standard choice, and the one that maximises the

@@ -3,3 +3,5 @@ test/Manifest.toml
 docs/build/
 *.cov
 .DS_Store
+bench/Manifest.toml
+scripts/Manifest.toml

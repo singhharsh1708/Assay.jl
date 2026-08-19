@@ -12,7 +12,20 @@ parameterisation in which Gamma-Poisson conjugacy is stated, which is what this
 package is mostly used for.
 """
 abstract type Density end
+
+"""
+    UnivariateDensity
+
+Densities over a single scalar. These support `logpdf`, `rand`, and where the
+verification suite needs them, `cdf`, `quantile`, `mean` and `var`.
+"""
 abstract type UnivariateDensity <: Density end
+
+"""
+    MultivariateDensity
+
+Densities over a vector, such as `MvNormal` and `Dirichlet`.
+"""
 abstract type MultivariateDensity <: Density end
 
 """

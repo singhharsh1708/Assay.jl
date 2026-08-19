@@ -99,6 +99,13 @@ drawn multinomially.
 """
 struct ResidualResampling <: AbstractResampler end
 
+"""
+    resample(rng, scheme, w)
+
+Ancestor indices drawn from normalised weights `w`, one per particle.
+"""
+function resample end
+
 function resample(rng::AbstractRNG, ::MultinomialResampling, w::AbstractVector)
     N = length(w)
     edges = cumsum(w)

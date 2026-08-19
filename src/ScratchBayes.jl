@@ -80,7 +80,8 @@ export NUTS, UTurnCriterion, ClassicUTurn, GeneralizedUTurn, StrictGeneralizedUT
        tree_continues, merge_continues, uturn_ok
 
 include("samplers/advi.jl")
-export ADVI, VIResult, VariationalFamily, MeanField, FullRank, elbo, posterior_samples,
+export ADVI, VIResult, VariationalFamily, MeanField, FullRank, elbo, elbo_with_error,
+       posterior_samples,
        variational_mean, variational_scale, variational_factor
 
 include("samplers/smc.jl")
