@@ -140,6 +140,30 @@ supported by two methods of one function rather than by an integration layer.
 Keeping `Model` unaware of temperature also keeps the common case, a single
 fixed target, free of a branch it never takes.
 
+## Two models that test the design rather than the algorithms
+
+Two of the models in this repository exist to put weight on the interface rather
+than on any sampler.
+
+A **sum-product network** ([`src/spn.jl`](../src/spn.jl)) has a weight vector at
+every sum node, and those weights are a point on a simplex. Inferring them is
+therefore an ordinary model here - `simplex(K)` and the log joint - with no
+special support of any kind, and simulation based calibration on that inference
+passes. It also found a real defect: the stick-breaking map could return a final
+component of `-1e-17` for extreme proposals, which the network's weight
+validation rejected outright. The transform now clamps, and the behaviour is
+documented in [status.md](status.md) rather than hidden.
+
+The **replicator dynamics on the simplex**
+([`src/simplex_dynamics.jl`](../src/simplex_dynamics.jl)) go further: the state
+of the system is itself a point on the simplex at every time step, and the
+dynamics have to stay there for every parameter value a sampler proposes,
+including the extreme ones it proposes during warmup. Nothing about that model
+is conjugate, so there is no closed form to check it against - which is exactly
+why it is worth having, since simulation based calibration verifies the simplex
+transform, its Jacobian and the sampler together, in a setting where an error
+could not hide behind a conjugate special case.
+
 ## What this is not
 
 It is not a probabilistic programming language. There is no `~` notation, no

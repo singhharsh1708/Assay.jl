@@ -504,20 +504,112 @@ function diagnostics_section()
         " `1 / sqrt(N)`, which is what a consistent particle estimator must do.\n")
 end
 
+# --------------------------------------------------------------------------
+# 8. Sum-product networks and the simplex dynamical system
+# --------------------------------------------------------------------------
+
+function extras_section()
+    say("## 8. Sum-product networks\n")
+    say("A sum-product network computes any marginal in one upward pass, provided",
+        " the graph is complete and decomposable; both conditions are checked at",
+        " construction. The claim to verify is that marginalisation is *exact* rather",
+        " than approximate, so the network's marginal is compared against numerical",
+        " integration of its own joint.\n")
+    comp1 = [SB.Normal(-2.0, 1.0), SB.Normal(0.0, 1.0)]
+    comp2 = [SB.Normal(2.0, 0.5), SB.Normal(1.0, 2.0)]
+    spn = SB.naive_bayes_spn([0.3, 0.7], [comp1, comp2])
+    say("| quantity | network | numerical integration |")
+    say("|---|---:|---:|")
+    h = 0.002
+    for x1 in (-1.0, 0.5, 2.5)
+        numeric = sum(exp(SB.logpdf(spn, [x1, x2])) * h for x2 in -30:h:30)
+        say("| marginal density at x1 = ", x1, " | ", fmt(exp(SB.logpdf(spn, [x1, missing])), 8),
+            " | ", fmt(numeric, 8), " |")
+    end
+    hh = 0.02
+    total = sum(exp(SB.logpdf(spn, [x1, x2])) * hh^2 for x1 in -8:hh:8, x2 in -12:hh:12)
+    say("| total mass | ", fmt(exp(SB.logpdf(spn, [missing, missing])), 8), " | ",
+        fmt(total, 8), " |\n")
+
+    leaves = [[SB.Normal(-2.0, 1.0)], [SB.Normal(2.0, 1.0)]]
+    build = data -> SB.Model((w = SB.simplex(2),),
+                             t -> SB.logpdf(SB.Dirichlet([2.0, 2.0]), t.w) +
+                                  sum(SB.logpdf(SB.naive_bayes_spn(t.w, leaves), [d]) for d in data))
+    prior_rand = rng -> (w = SB.rand(rng, SB.Dirichlet([2.0, 2.0])),)
+    simulate = (theta, rng) -> [SB.rand(rng, SB.naive_bayes_spn(theta.w, leaves), 1)[1] for _ in 1:30]
+    res = SB.sbc(Random.Xoshiro(12), SB.CalibrationProblem(build, prior_rand, simulate),
+                 SB.NUTS(); n_sims = 200, n_draws = 64, thin = 5, n_warmup = 400)
+    say("The sum weights live on a simplex, so inferring them is an ordinary model",
+        " in this package. There is no closed-form posterior, and calibration is the",
+        " check: chi-square p values of ",
+        join([fmt(p, 3) for p in res.pvalue], " and "), " over 200 replications.\n")
+
+    say("## 9. A dynamical system on the probability simplex\n")
+    say("`x_{t+1} = normalise(x_t .* exp(f))` with `y_t ~ Multinomial(n, x_t)`: the",
+        " initial state is a simplex parameter, the fitness vector is identified by",
+        " pinning its first component, and the state must remain on the simplex for",
+        " every proposal the sampler makes.\n")
+    rng = Random.Xoshiro(5)
+    truth = (x0 = [0.6, 0.3, 0.1], f = [0.8, -0.5])
+    states = SB.simplex_trajectory(truth.x0, vcat(0.0, truth.f), 6)
+    counts = [SB.rand(rng, SB.Multinomial(200, x)) for x in states]
+    chn = SB.sample(SB.replicator_model(counts, 200), SB.NUTS(), 4000; n_warmup = 1000,
+                    n_chains = 4, rng = Random.Xoshiro(6))
+    say("| parameter | truth | posterior mean | 2.5% | 97.5% | ESS | R-hat |")
+    say("|---|---:|---:|---:|---:|---:|---:|")
+    for (name, t) in ((Symbol("x0[1]"), 0.6), (Symbol("x0[2]"), 0.3), (Symbol("x0[3]"), 0.1),
+                      (Symbol("f[1]"), 0.8), (Symbol("f[2]"), -0.5))
+        v = vec(chn[name])
+        say("| ", name, " | ", fmt(t, 3), " | ", fmt(mean(v), 3), " | ", fmt(quantile(v, 0.025), 3),
+            " | ", fmt(quantile(v, 0.975), 3), " | ", fmt(SB.ess_bulk(chn[name]), 0), " | ",
+            fmt(SB.rhat(chn[name]), 3), " |")
+    end
+    prob = SB.replicator_problem(3, 6, 40; alpha = 1.0, fitness_scale = 1.0)
+    sres = SB.sbc(Random.Xoshiro(11), prob, SB.NUTS(); n_sims = 200, n_draws = 64, thin = 5,
+                  n_warmup = 400)
+    say("\nSimulation based calibration over 200 replications of the whole model,",
+        " which is what verifies the simplex transform end to end in a setting with",
+        " no closed form:\n")
+    say("| parameter | chi-square | p |")
+    say("|---|---:|---:|")
+    for j in eachindex(sres.names)
+        say("| ", sres.names[j], " | ", fmt(sres.chisq[j], 2), " | ", fmt(sres.pvalue[j], 4), " |")
+    end
+    counts_hist = [SB.rank_histogram(sres, j) for j in eachindex(sres.names)]
+    plots = [bar(counts_hist[j]; label = "", color = :steelblue, linecolor = :steelblue,
+                 title = string(sres.names[j], " (p = ", fmt(sres.pvalue[j], 3), ")"),
+                 xlabel = "rank bin", ylabel = "count",
+                 ylims = (0, maximum(counts_hist[j]) * 1.4)) for j in eachindex(sres.names)]
+    for p in plots
+        hline!(p, [200 / sres.n_bins]; color = :black, lw = 2, label = "uniform")
+    end
+    traj = SB.simplex_trajectory([0.5, 0.3, 0.2], [0.0, 0.6, -0.3], 25)
+    ptraj = plot(; xlabel = "t", ylabel = "state", title = "replicator trajectory", ylims = (0, 1))
+    for k in 1:3
+        plot!(ptraj, [x[k] for x in traj]; lw = 2, label = string("x", k))
+    end
+    push!(plots, ptraj)
+    plot(plots...; layout = (2, 3), size = (1400, 760))
+    savefig(joinpath(FIG, "simplex_dynamics.png"))
+    say("\n![simplex dynamics](figures/simplex_dynamics.png)\n")
+end
+
 function main()
     say("# Results\n")
     say("Generated by `julia --project=scripts -t 4 scripts/make_results.jl`. Every table",
         " and figure below is produced by that script from the code in `src/`; nothing",
         " here is transcribed by hand.\n")
     say("Contents: conjugate comparisons, simulation based calibration, the Geweke",
-        " joint distribution test, hard geometries, negative controls, and the",
-        " diagnostics themselves.\n")
+        " joint distribution test, hard geometries, negative controls, the diagnostics",
+        " themselves, variational inference, sum-product networks, and a dynamical",
+        " system on the simplex.\n")
     conjugate_section()
     sbc_section()
     geweke_section()
     geometry_section()
     negative_control_section()
     diagnostics_section()
+    extras_section()
     text = String(take!(OUT))
     open(joinpath(@__DIR__, "..", "docs", "results.md"), "w") do f
         write(f, text)

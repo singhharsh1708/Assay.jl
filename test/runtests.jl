@@ -16,5 +16,7 @@ include("testutils.jl")
     include("test_calibration.jl")
     include("test_negative_controls.jl")
     include("test_geometries.jl")
+    include("test_spn.jl")
+    include("test_dynamics.jl")
     include("test_turing.jl")
 end

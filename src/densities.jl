@@ -389,6 +389,65 @@ Base.rand(rng::AbstractRNG, d::UnivariateDensity, n::Int) = [rand(rng, d) for _ 
 Base.rand(d::Density) = rand(Random.default_rng(), d)
 Base.rand(d::UnivariateDensity, n::Int) = rand(Random.default_rng(), d, n)
 
+"""
+    Categorical(p)
+
+Distribution over `1:length(p)` with probabilities `p`.
+"""
+struct Categorical{T<:Real} <: UnivariateDensity
+    p::Vector{T}
+end
+
+function logpdf(d::Categorical, x::Real)
+    (isinteger(x) && 1 <= x <= length(d.p)) || return oftype(float(first(d.p)), -Inf)
+    return log(d.p[Int(x)])
+end
+function Base.rand(rng::AbstractRNG, d::Categorical)
+    u = rand(rng)
+    c = zero(float(eltype(d.p)))
+    for (i, pi) in enumerate(d.p)
+        c += pi
+        u <= c && return i
+    end
+    return length(d.p)
+end
+mean(d::Categorical) = sum(i * p for (i, p) in enumerate(d.p))
+
+"""
+    Multinomial(n, p)
+
+Counts of `n` independent categorical trials. Used by the simplex dynamical
+system example, where the state of the system is the probability vector.
+"""
+struct Multinomial{T<:Real} <: MultivariateDensity
+    n::Int
+    p::Vector{T}
+end
+
+function logpdf(d::Multinomial, x::AbstractVector)
+    length(x) == length(d.p) || return -Inf
+    (all(xi -> isinteger(xi) && xi >= 0, x) && sum(x) == d.n) || return -Inf
+    all(>=(0), d.p) || return oftype(float(first(d.p)), -Inf)
+    s = loggamma(d.n + 1)
+    for (xi, pi) in zip(x, d.p)
+        s -= loggamma(xi + 1)
+        if xi > 0
+            pi <= 0 && return oftype(float(first(d.p)), -Inf)
+            s += xi * log(pi)
+        end
+    end
+    return s
+end
+
+function Base.rand(rng::AbstractRNG, d::Multinomial)
+    counts = zeros(Int, length(d.p))
+    for _ in 1:d.n
+        counts[rand(rng, Categorical(collect(d.p)))] += 1
+    end
+    return counts
+end
+mean(d::Multinomial) = d.n .* d.p
+
 # --------------------------------------------------------------------------
 # Cumulative distribution functions and quantiles
 #

@@ -64,6 +64,21 @@ scale, and eight schools non-centred: posterior means agree within 4 combined
 Monte Carlo standard errors, standard deviations within 5 to 15% relative.
 Turing is a test dependency only.
 
+**Sum-product networks.** Exact marginalisation against numerical integration
+of the network's own joint to `1e-6` relative, and against exhaustive
+enumeration for discrete leaves. Completeness and decomposability violations are
+rejected at construction. Ancestral sampling matches the density's first moments
+to 4 standard errors over 100,000 draws. Inference of the sum weights, which is
+a non-conjugate model on a simplex, passes simulation based calibration over 150
+replications.
+
+**The simplex dynamical system.** The replicator map is checked against its
+closed-form solution `x_T proportional to x_0 .* exp((T-1) f)`, against its
+shift invariance and its fixed point, and for numerical safety at fitness values
+of plus and minus 800. The posterior recovers the fitness vector, and the whole
+model passes simulation based calibration over 150 replications with all
+p values above 0.74.
+
 **Hard geometries.** Neal's funnel, a `rho = 0.95` Gaussian and a banana, each
 against closed-form marginals. Where the sampler fails, the failure is asserted
 rather than hidden: the centred funnel is asserted to produce divergences and to
@@ -127,10 +142,14 @@ for a correct sampler. An automatic choice from the effective sample size would
 be better.
 
 **The transforms are open maps only up to rounding.** At `|y| > 37` a unit
-interval transform returns exactly 0 or 1 in Float64. The map stays monotone and
-the log density still evaluates, but code that assumes strict interiority can be
-surprised. This is asserted in the tests as the documented behaviour rather than
-fixed.
+interval transform returns exactly 0 or 1 in Float64, and a simplex component
+underflows to 0 in the same way; the stick-breaking remainder is clamped at zero
+so that the output is still a point of the simplex rather than a vector summing
+to `1 + 1e-17` with a negative entry. The map stays monotone and the log density
+still evaluates to `-Inf`, so a sampler rejects such a point, but code that
+assumes strict interiority can be surprised. This is asserted in the tests as
+documented behaviour rather than fixed. It was found by a sum-product network
+rejecting a negative mixture weight during sampling.
 
 **ADVI's step size is not adapted.** Adam with a constant step size plus
 Polyak-Ruppert averaging of the iterates; no step size search of the kind Stan
@@ -165,6 +184,10 @@ reversible-jump. Discrete parameters would have to be marginalised by the user.
 
 **Riemannian and higher-order methods.** No Riemannian manifold HMC, no
 higher-order symplectic integrators, no delayed rejection.
+
+**Structure learning for sum-product networks.** The network structure is given
+by the user; only the weights are inferred. Learning the structure from data is
+a research problem in its own right and is not attempted.
 
 **Correlation matrix and covariance transforms.** The Cholesky-of-correlation
 transform is the obvious missing constraint, and hierarchical models want it. It

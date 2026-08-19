@@ -36,7 +36,7 @@ export logistic, logit, log1pexp, logsumexp
 include("densities.jl")
 export Density, UnivariateDensity, MultivariateDensity
 export Normal, LogNormal, Cauchy, StudentT, Uniform, Exponential, Gamma, InverseGamma,
-       Beta, Bernoulli, Binomial, Poisson, MvNormal, Dirichlet
+       Beta, Bernoulli, Binomial, Poisson, Categorical, Multinomial, MvNormal, Dirichlet
 export logpdf, loglikelihood, cdf
 
 # Layer 2: transforms
@@ -93,9 +93,18 @@ export SMC, SMCResult, TemperedModel, AbstractResampler, MultinomialResampling,
 include("conjugate.jl")
 export beta_bernoulli, normal_normal, gamma_poisson
 
+# Sum-product networks
+include("spn.jl")
+export SPNNode, LeafNode, SumNode, ProductNode, sum_node, product_node, scope,
+       n_sum_nodes, naive_bayes_spn
+
 # Calibration checks against the joint distribution
 include("calibration.jl")
 export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
        rank_uniformity_test, geweke, GewekeResult
+
+# A dynamical system on the simplex, as a worked non-conjugate example
+include("simplex_dynamics.jl")
+export simplex_step, simplex_trajectory, replicator_model, replicator_problem
 
 end # module

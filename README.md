@@ -150,6 +150,21 @@ the Bayesian fraction of missing information.
 distribution test are part of the library, not just the test suite, so they can
 be run against a user's own model.
 
+**Sum-product networks.** Sums, products and univariate leaves, with
+completeness and decomposability checked at construction, exact marginalisation
+by setting a leaf to `missing`, and ancestral sampling. Marginals are verified
+against numerical integration of the network's own joint density, and against
+exhaustive enumeration for discrete leaves. The sum weights live on a simplex,
+so inferring them is an ordinary model in this package - and simulation based
+calibration on that inference passes, in a setting with no closed form.
+
+**A dynamical system on the probability simplex.** The replicator map
+`x_{t+1} = normalise(x_t .* exp(f))` observed through multinomial counts, with
+the initial state as a simplex parameter and the fitness vector identified by
+pinning one component. Verified by parameter recovery and by simulation based
+calibration of the whole model, which is what exercises the simplex transform
+and its Jacobian end to end.
+
 ## Quick start
 
 ```julia
@@ -199,7 +214,7 @@ tm    = TemperedModel(prior, theta -> loglikelihood(Bernoulli(theta.p), data);
                       prior_rand = rng -> (p = rand(rng, Beta(2, 2)),))
 
 result = sample(tm, SMC(; n_particles = 2000))
-result.logZ, weighted_mean(result, :p)        # (-7.24, 0.643); exact log Z is -7.25
+result.logZ, weighted_mean(result, :p)        # (-6.982, 0.643); exact log Z is -6.978
 ```
 
 ## Layout
@@ -219,6 +234,8 @@ src/
   diagnostics.jl        R-hat, ESS, MCSE, BFMI
   conjugate.jl          reference problems with closed-form posteriors
   calibration.jl        simulation based calibration, Geweke
+  spn.jl                sum-product networks
+  simplex_dynamics.jl   replicator dynamics on the simplex
   samplers/
     interface.jl        the sampler contract and the generic driver
     mh.jl  hmc.jl  nuts.jl  smc.jl  advi.jl
@@ -234,6 +251,24 @@ julia --project=. -e 'using Pkg; Pkg.test()'                  # full suite, abou
 julia --project=scripts -t 4 scripts/make_results.jl          # regenerates docs/results.md
 julia --project=bench -t 4 bench/benchmarks.jl                # regenerates docs/benchmarks.md
 ```
+
+## Test suite
+
+658 assertions, about 4 minutes on 4 threads:
+
+| file | what it establishes |
+|---|---|
+| `test_utils.jl`, `test_densities.jl` | numerics in the tails; every density against Distributions.jl; every sampler against its own density |
+| `test_transforms.jl` | round trips, Jacobians against automatic differentiation, pushforward densities integrating to one |
+| `test_model.jl` | log density and gradient, with and without the Jacobian term |
+| `test_mh_conjugate.jl`, `test_hmc_nuts.jl` | closed-form posteriors for every sampler, adaptation, metrics, divergence reporting |
+| `test_smc.jl`, `test_advi.jl` | unbiased resampling, the tempering schedule, log evidence, the ELBO bound, the mean-field variance deficit |
+| `test_diagnostics.jl` | ESS against AR(1) theory, split R-hat, rank normalisation, coverage of the Monte Carlo standard error |
+| `test_calibration.jl` | simulation based calibration and Geweke for three models and two samplers |
+| `test_negative_controls.jl` | four deliberate bugs and what does or does not catch each |
+| `test_geometries.jl` | funnel, correlated Gaussian and banana against closed forms, including the NUTS termination regression |
+| `test_spn.jl`, `test_dynamics.jl` | exact marginalisation, structural validation, and calibration of two non-conjugate models |
+| `test_turing.jl` | agreement with Turing.jl and with MCMCChains, on models with no closed form |
 
 ## Documents
 

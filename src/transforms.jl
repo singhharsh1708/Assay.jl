@@ -185,6 +185,12 @@ end
 
 Stick-breaking map from `R^(K-1)` onto the interior of the `K`-simplex.
 
+As with the other bounded transforms, the image is the open simplex only up to
+floating point: a component underflows to exactly zero for `y` beyond roughly
+37 in magnitude. The log density at such a point is `-Inf` for any density with
+an interior support, so a sampler rejects it, but the constrained value handed
+to user code is on the boundary rather than strictly inside it.
+
 With `z_k = logistic(y_k + log(1 / (K - k)))` and `r_k = 1 - sum(x_1..x_{k-1})`,
 
     x_k = r_k * z_k   for k < K,      x_K = r_K
@@ -222,7 +228,10 @@ function to_constrained(t::SimplexT, y::AbstractVector)
         x[k] = xk
         remaining -= xk
     end
-    x[K] = remaining
+    # The accumulated subtraction can leave `remaining` at a value like -1e-17
+    # for extreme `y`; clamping keeps the contract that the output is a point of
+    # the simplex, at a cost below the rounding error already present in the sum.
+    x[K] = max(remaining, zero(T))
     return x, lj
 end
 
