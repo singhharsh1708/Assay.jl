@@ -9,10 +9,10 @@
 #
 # Writes a markdown table to docs/benchmarks.md.
 
-using ScratchBayes
+using Assay
 using BenchmarkTools, Printf, Random, Statistics, LinearAlgebra
 
-const SB = ScratchBayes
+const AS = Assay
 const QUICK = "--quick" in ARGS
 const NDRAWS = QUICK ? 1000 : 4000
 const NWARMUP = QUICK ? 500 : 1000
@@ -20,30 +20,30 @@ const NCHAINS = 4
 
 """Data and model for each benchmark target, with the dimension it lives in."""
 function targets(rng)
-    counts = [SB.rand(rng, SB.Poisson(4.0)) for _ in 1:60]
-    gp = SB.gamma_poisson(counts; a = 2.0, b = 1.0)
+    counts = [AS.rand(rng, AS.Poisson(4.0)) for _ in 1:60]
+    gp = AS.gamma_poisson(counts; a = 2.0, b = 1.0)
 
     d = 10
     sds = 10 .^ range(-1, 1, length = d)
-    illcond = SB.MvNormal(zeros(d), Matrix(Diagonal(sds .^ 2)))
-    illmodel = SB.Model((x = SB.unconstrained(d),), t -> SB.logpdf(illcond, t.x))
+    illcond = AS.MvNormal(zeros(d), Matrix(Diagonal(sds .^ 2)))
+    illmodel = AS.Model((x = AS.unconstrained(d),), t -> AS.logpdf(illcond, t.x))
 
     rho = 0.95
-    corr = SB.MvNormal(zeros(2), [1.0 rho; rho 1.0])
-    corrmodel = SB.Model((x = SB.unconstrained(2),), t -> SB.logpdf(corr, t.x))
+    corr = AS.MvNormal(zeros(2), [1.0 rho; rho 1.0])
+    corrmodel = AS.Model((x = AS.unconstrained(2),), t -> AS.logpdf(corr, t.x))
 
-    funnel = SB.Model((v = SB.unconstrained(), xt = SB.unconstrained(9)),
-                      t -> SB.logpdf(SB.Normal(0.0, 3.0), t.v) +
-                           sum(SB.logpdf(SB.Normal(0.0, 1.0), xi) for xi in t.xt))
+    funnel = AS.Model((v = AS.unconstrained(), xt = AS.unconstrained(9)),
+                      t -> AS.logpdf(AS.Normal(0.0, 3.0), t.v) +
+                           sum(AS.logpdf(AS.Normal(0.0, 1.0), xi) for xi in t.xt))
 
     y = [28.0, 8, -3, 7, -1, 1, 18, 12]
     s = [15.0, 10, 16, 11, 9, 11, 10, 18]
-    schools = SB.Model((mu = SB.unconstrained(), tau = SB.positive(),
-                        theta_raw = SB.unconstrained(8)),
-                       t -> SB.logpdf(SB.Normal(0.0, 5.0), t.mu) +
-                            SB.logpdf(SB.Cauchy(0.0, 5.0), t.tau) + log(2) +
-                            sum(SB.logpdf(SB.Normal(0.0, 1.0), r) for r in t.theta_raw) +
-                            sum(SB.logpdf(SB.Normal(t.mu + t.tau * t.theta_raw[i], s[i]), y[i])
+    schools = AS.Model((mu = AS.unconstrained(), tau = AS.positive(),
+                        theta_raw = AS.unconstrained(8)),
+                       t -> AS.logpdf(AS.Normal(0.0, 5.0), t.mu) +
+                            AS.logpdf(AS.Cauchy(0.0, 5.0), t.tau) + log(2) +
+                            sum(AS.logpdf(AS.Normal(0.0, 1.0), r) for r in t.theta_raw) +
+                            sum(AS.logpdf(AS.Normal(t.mu + t.tau * t.theta_raw[i], s[i]), y[i])
                                 for i in eachindex(y)))
 
     return [("gamma-poisson (1d)", gp.model, :lambda),
@@ -59,16 +59,16 @@ discarded first so that the timing excludes Julia's compilation of the sampler
 for this model's type.
 """
 function measure(model, sampler, param, seed)
-    SB.sample(model, sampler, 5; n_warmup = 5, n_chains = 1, rng = Random.Xoshiro(seed))
-    chn = SB.sample(model, sampler, NDRAWS; n_warmup = NWARMUP, n_chains = NCHAINS,
+    AS.sample(model, sampler, 5; n_warmup = 5, n_chains = 1, rng = Random.Xoshiro(seed))
+    chn = AS.sample(model, sampler, NDRAWS; n_warmup = NWARMUP, n_chains = NCHAINS,
                     rng = Random.Xoshiro(seed))
     x = chn[param]
-    e = SB.ess_bulk(x)
+    e = AS.ess_bulk(x)
     secs = chn.info[:time_seconds]
-    grads = haskey(chn.stats, :n_leapfrog) ? sum(SB.sampler_stat(chn, :n_leapfrog)) : NaN
+    grads = haskey(chn.stats, :n_leapfrog) ? sum(AS.sampler_stat(chn, :n_leapfrog)) : NaN
     return (ess = e, seconds = secs, ess_per_sec = e / secs,
-            grads_per_ess = grads / e, rhat = SB.rhat(x),
-            divergences = SB.divergences(chn))
+            grads_per_ess = grads / e, rhat = AS.rhat(x),
+            divergences = AS.divergences(chn))
 end
 
 function main()
@@ -85,11 +85,11 @@ function main()
     println(io, "| model | sampler | ESS | ms | ESS/sec | gradients/ESS | R-hat | divergences |")
     println(io, "|---|---|---:|---:|---:|---:|---:|---:|")
 
-    samplers = [("RWM", SB.RandomWalkMH()),
-                ("RWM (adapted covariance)", SB.RandomWalkMH(; adapt_cov = true)),
-                ("HMC (L=10)", SB.HMC()),
-                ("NUTS", SB.NUTS()),
-                ("NUTS (dense metric)", SB.NUTS(; metric = :dense))]
+    samplers = [("RWM", AS.RandomWalkMH()),
+                ("RWM (adapted covariance)", AS.RandomWalkMH(; adapt_cov = true)),
+                ("HMC (L=10)", AS.HMC()),
+                ("NUTS", AS.NUTS()),
+                ("NUTS (dense metric)", AS.NUTS(; metric = :dense))]
 
     for (name, model, param) in targets(rng)
         for (sname, spl) in samplers
@@ -105,40 +105,40 @@ function main()
     println(io, "| dimension | ForwardDiff (us) | finite differences (us) | ratio |")
     println(io, "|---:|---:|---:|---:|")
     for d in (2, 10, 50, 200)
-        target = SB.MvNormal(zeros(d), Matrix{Float64}(I, d, d))
-        model = SB.Model((x = SB.unconstrained(d),), t -> SB.logpdf(target, t.x))
+        target = AS.MvNormal(zeros(d), Matrix{Float64}(I, d, d))
+        model = AS.Model((x = AS.unconstrained(d),), t -> AS.logpdf(target, t.x))
         y = randn(Random.Xoshiro(1), d)
-        tf = @belapsed SB.logdensity_and_gradient($model, $y; backend = SB.ForwardDiffAD())
-        tn = @belapsed SB.logdensity_and_gradient($model, $y; backend = SB.FiniteDiffAD())
+        tf = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.ForwardDiffAD())
+        tn = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.FiniteDiffAD())
         @printf(io, "| %d | %.1f | %.1f | %.1fx |\n", d, tf * 1e6, tn * 1e6, tn / tf)
     end
 
     println(io, "\n## Sequential Monte Carlo and variational inference\n")
-    counts = [SB.rand(Random.Xoshiro(5), SB.Poisson(4.0)) for _ in 1:60]
-    gp = SB.gamma_poisson(counts; a = 2.0, b = 1.0)
+    counts = [AS.rand(Random.Xoshiro(5), AS.Poisson(4.0)) for _ in 1:60]
+    gp = AS.gamma_poisson(counts; a = 2.0, b = 1.0)
     println(io, "| method | setting | seconds | posterior mean | exact | log Z | exact log Z |")
     println(io, "|---|---|---:|---:|---:|---:|---:|")
-    SB.sample(gp.tempered, SB.SMC(; n_particles = 50); rng = Random.Xoshiro(6))
+    AS.sample(gp.tempered, AS.SMC(; n_particles = 50); rng = Random.Xoshiro(6))
     for n in (500, 2000, 8000)
-        res = SB.sample(gp.tempered, SB.SMC(; n_particles = n); rng = Random.Xoshiro(6))
+        res = AS.sample(gp.tempered, AS.SMC(; n_particles = n); rng = Random.Xoshiro(6))
         @printf(io, "| SMC | %d particles | %.3f | %.4f | %.4f | %.3f | %.3f |\n",
-                n, res.time_seconds, SB.weighted_mean(res, :lambda),
-                SB.mean(gp.posterior.lambda), res.logZ, gp.logevidence)
+                n, res.time_seconds, AS.weighted_mean(res, :lambda),
+                AS.mean(gp.posterior.lambda), res.logZ, gp.logevidence)
     end
-    for (fam, label) in ((SB.MeanField(), "mean field"), (SB.FullRank(), "full rank"))
-        SB.sample(gp.model, SB.ADVI(; family = fam, n_iterations = 5); rng = Random.Xoshiro(7))
-        res = SB.sample(gp.model, SB.ADVI(; family = fam); rng = Random.Xoshiro(7))
-        chn = SB.posterior_samples(res, 20_000; rng = Random.Xoshiro(8))
+    for (fam, label) in ((AS.MeanField(), "mean field"), (AS.FullRank(), "full rank"))
+        AS.sample(gp.model, AS.ADVI(; family = fam, n_iterations = 5); rng = Random.Xoshiro(7))
+        res = AS.sample(gp.model, AS.ADVI(; family = fam); rng = Random.Xoshiro(7))
+        chn = AS.posterior_samples(res, 20_000; rng = Random.Xoshiro(8))
         @printf(io, "| ADVI | %s | %.3f | %.4f | %.4f | %.3f (ELBO) | %.3f |\n",
-                label, res.time_seconds, mean(vec(chn[:lambda])), SB.mean(gp.posterior.lambda),
+                label, res.time_seconds, mean(vec(chn[:lambda])), AS.mean(gp.posterior.lambda),
                 res.elbo_final, gp.logevidence)
     end
-    SB.sample(gp.model, SB.NUTS(), 5; n_warmup = 5, n_chains = 1, rng = Random.Xoshiro(9))
-    nuts = SB.sample(gp.model, SB.NUTS(), NDRAWS; n_warmup = NWARMUP, n_chains = NCHAINS,
+    AS.sample(gp.model, AS.NUTS(), 5; n_warmup = 5, n_chains = 1, rng = Random.Xoshiro(9))
+    nuts = AS.sample(gp.model, AS.NUTS(), NDRAWS; n_warmup = NWARMUP, n_chains = NCHAINS,
                      rng = Random.Xoshiro(9))
     @printf(io, "| NUTS | %d x %d draws | %.3f | %.4f | %.4f | - | %.3f |\n",
             NCHAINS, NDRAWS, nuts.info[:time_seconds], mean(vec(nuts[:lambda])),
-            SB.mean(gp.posterior.lambda), gp.logevidence)
+            AS.mean(gp.posterior.lambda), gp.logevidence)
 
     text = String(take!(io))
     open(joinpath(@__DIR__, "..", "docs", "benchmarks.md"), "w") do f

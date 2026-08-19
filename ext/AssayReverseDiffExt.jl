@@ -1,4 +1,4 @@
-module ScratchBayesReverseDiffExt
+module AssayReverseDiffExt
 
 # Reverse-mode gradients. Loaded automatically when ReverseDiff is available.
 #
@@ -6,11 +6,11 @@ module ScratchBayesReverseDiffExt
 # gradient through `logdensity_and_gradient(backend, f, y)`: a new backend is a
 # new method, and nothing in the samplers changes.
 
-using ScratchBayes: ScratchBayes, ReverseDiffAD
+using Assay: Assay, ReverseDiffAD
 using ReverseDiff: ReverseDiff
 using DiffResults: DiffResults
 
-function ScratchBayes.logdensity_and_gradient(b::ReverseDiffAD, f, y::AbstractVector)
+function Assay.logdensity_and_gradient(b::ReverseDiffAD, f, y::AbstractVector)
     result = DiffResults.GradientResult(collect(float.(y)))
     if b.compile
         if b.tape === nothing || b.tape_length != length(y)

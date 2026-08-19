@@ -7,10 +7,10 @@
 
 ENV["GKSwstype"] = "100"                      # headless GR
 
-using ScratchBayes
+using Assay
 using Plots, Printf, Random, Statistics, LinearAlgebra
 
-const SB = ScratchBayes
+const AS = Assay
 const FIG = joinpath(@__DIR__, "..", "docs", "figures")
 mkpath(FIG)
 default(; size = (900, 600), dpi = 130, legendfontsize = 8, framestyle = :box,
@@ -25,13 +25,13 @@ fmt(x, n = 4) = @sprintf("%.*f", n, x)
 # --------------------------------------------------------------------------
 
 """z score of a sampled mean against the analytic mean, in Monte Carlo standard errors."""
-zmean(x, exact) = (mean(vec(x)) - exact) / SB.mcse_mean(x)
+zmean(x, exact) = (mean(vec(x)) - exact) / AS.mcse_mean(x)
 
 """z score of a sampled standard deviation, using the ESS of the squared deviations."""
 function zstd(x, exact)
     v = vec(x)
     s = std(v)
-    e = SB.ess_bulk(reshape((v .- mean(v)) .^ 2, size(x)))
+    e = AS.ess_bulk(reshape((v .- mean(v)) .^ 2, size(x)))
     return (s - exact) / (s / sqrt(2 * max(e, 1)))
 end
 
@@ -44,44 +44,44 @@ function conjugate_section()
     say("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
 
     rng = Random.Xoshiro(20240819)
-    counts = [SB.rand(rng, SB.Poisson(3.5)) for _ in 1:60]
+    counts = [AS.rand(rng, AS.Poisson(3.5)) for _ in 1:60]
     bern = [rand(rng) < 0.35 ? 1 : 0 for _ in 1:80]
     normals = [1.5 + 0.8 * randn(rng) for _ in 1:50]
 
-    cases = [("Beta-Bernoulli", SB.beta_bernoulli(bern; a = 2.0, b = 2.0), :p),
-             ("Normal-Normal", SB.normal_normal(normals; mu0 = 0.0, tau0 = 5.0, sigma = 0.8), :mu),
-             ("Gamma-Poisson", SB.gamma_poisson(counts; a = 2.0, b = 1.0), :lambda)]
-    samplers = [("RWM", SB.RandomWalkMH()), ("HMC", SB.HMC()), ("NUTS", SB.NUTS())]
+    cases = [("Beta-Bernoulli", AS.beta_bernoulli(bern; a = 2.0, b = 2.0), :p),
+             ("Normal-Normal", AS.normal_normal(normals; mu0 = 0.0, tau0 = 5.0, sigma = 0.8), :mu),
+             ("Gamma-Poisson", AS.gamma_poisson(counts; a = 2.0, b = 1.0), :lambda)]
+    samplers = [("RWM", AS.RandomWalkMH()), ("HMC", AS.HMC()), ("NUTS", AS.NUTS())]
 
     plots = Any[]
     for (name, ref, param) in cases
         exact = getproperty(ref.posterior, param)
-        em, es = SB.mean(exact), sqrt(SB.var(exact))
+        em, es = AS.mean(exact), sqrt(AS.var(exact))
         local last_chain = nothing
         for (sname, spl) in samplers
-            chn = SB.sample(ref.model, spl, 20_000; n_warmup = 2000, n_chains = 4,
+            chn = AS.sample(ref.model, spl, 20_000; n_warmup = 2000, n_chains = 4,
                             rng = Random.Xoshiro(7))
             x = chn[param]
             say("| ", name, " | ", param, " | ", sname, " | ", fmt(mean(vec(x))), " | ", fmt(em),
                 " | ", fmt(zmean(x, em), 2), " | ", fmt(std(vec(x))), " | ", fmt(es), " | ",
-                fmt(zstd(x, es), 2), " | ", fmt(SB.ess_bulk(x), 0), " | ", fmt(SB.rhat(x), 3), " |")
+                fmt(zstd(x, es), 2), " | ", fmt(AS.ess_bulk(x), 0), " | ", fmt(AS.rhat(x), 3), " |")
             sname == "NUTS" && (last_chain = x)
         end
         # SMC and ADVI on the same model
-        res = SB.sample(ref.tempered, SB.SMC(; n_particles = 4000); rng = Random.Xoshiro(8))
+        res = AS.sample(ref.tempered, AS.SMC(; n_particles = 4000); rng = Random.Xoshiro(8))
         say("| ", name, " | ", param, " | SMC (4000 particles) | ",
-            fmt(SB.weighted_mean(res, param)), " | ", fmt(em), " | - | ",
-            fmt(SB.weighted_std(res, param)), " | ", fmt(es), " | - | - | - |")
-        vi = SB.sample(ref.model, SB.ADVI(; n_samples = 8); rng = Random.Xoshiro(9))
-        vc = SB.posterior_samples(vi, 40_000; rng = Random.Xoshiro(10))
+            fmt(AS.weighted_mean(res, param)), " | ", fmt(em), " | - | ",
+            fmt(AS.weighted_std(res, param)), " | ", fmt(es), " | - | - | - |")
+        vi = AS.sample(ref.model, AS.ADVI(; n_samples = 8); rng = Random.Xoshiro(9))
+        vc = AS.posterior_samples(vi, 40_000; rng = Random.Xoshiro(10))
         say("| ", name, " | ", param, " | ADVI (mean field) | ", fmt(mean(vec(vc[param]))), " | ",
             fmt(em), " | - | ", fmt(std(vec(vc[param]))), " | ", fmt(es), " | - | - | - |")
 
-        lo, hi = SB.quantile(exact, 0.0005), SB.quantile(exact, 0.9995)
+        lo, hi = AS.quantile(exact, 0.0005), AS.quantile(exact, 0.9995)
         grid = range(lo, hi; length = 300)
         p = histogram(vec(last_chain); bins = 60, normalize = :pdf, label = "NUTS draws",
                       color = :steelblue, linecolor = :steelblue, alpha = 0.55)
-        plot!(p, grid, [exp(SB.logpdf(exact, g)) for g in grid]; lw = 2.5, color = :black,
+        plot!(p, grid, [exp(AS.logpdf(exact, g)) for g in grid]; lw = 2.5, color = :black,
               label = "analytic posterior", title = name, xlabel = String(param))
         push!(plots, p)
     end
@@ -98,7 +98,7 @@ function conjugate_section()
     say("|---|---:|---:|---:|---:|")
     for (name, ref, _) in cases
         for n in (500, 4000)
-            zs = [SB.sample(ref.tempered, SB.SMC(; n_particles = n);
+            zs = [AS.sample(ref.tempered, AS.SMC(; n_particles = n);
                             rng = Random.Xoshiro(100 + r)).logZ for r in 1:8]
             say("| ", name, " | ", n, " | ", fmt(mean(zs), 3), " | ", fmt(std(zs), 3), " | ",
                 fmt(ref.logevidence, 3), " |")
@@ -112,18 +112,18 @@ end
 # --------------------------------------------------------------------------
 
 """A positive transform with the Jacobian term removed: the negative control."""
-struct NoJacobianPositive <: SB.AbstractTransform
+struct NoJacobianPositive <: AS.AbstractTransform
     n::Int
 end
-SB.udim(t::NoJacobianPositive) = t.n
-SB.cdim(t::NoJacobianPositive) = t.n
-SB.to_constrained(::NoJacobianPositive, y::AbstractVector) = (exp.(y), zero(eltype(y)))
-SB.to_unconstrained(::NoJacobianPositive, x::AbstractVector) = log.(float.(x))
+AS.udim(t::NoJacobianPositive) = t.n
+AS.cdim(t::NoJacobianPositive) = t.n
+AS.to_constrained(::NoJacobianPositive, y::AbstractVector) = (exp.(y), zero(eltype(y)))
+AS.to_unconstrained(::NoJacobianPositive, x::AbstractVector) = log.(float.(x))
 
 broken_gamma_poisson(data; a = 2.0, b = 1.0) =
-    SB.Model((lambda = SB.ScalarT(NoJacobianPositive(1)),),
-             t -> SB.logpdf(SB.Gamma(a, b), t.lambda) +
-                  SB.loglikelihood(SB.Poisson(t.lambda), data))
+    AS.Model((lambda = AS.ScalarT(NoJacobianPositive(1)),),
+             t -> AS.logpdf(AS.Gamma(a, b), t.lambda) +
+                  AS.loglikelihood(AS.Poisson(t.lambda), data))
 
 function sbc_section()
     say("## 2. Simulation based calibration\n")
@@ -133,18 +133,18 @@ function sbc_section()
     say("| problem | sampler | chi-square | p |")
     say("|---|---|---:|---:|")
 
-    problems = [("Gamma-Poisson", SB.conjugate_problem(SB.gamma_poisson, 20; a = 2.0, b = 1.0), SB.NUTS()),
-                ("Beta-Bernoulli", SB.conjugate_problem(SB.beta_bernoulli, 25; a = 2.0, b = 3.0), SB.NUTS()),
-                ("Normal-Normal", SB.conjugate_problem(SB.normal_normal, 15; mu0 = 0.0, tau0 = 2.0, sigma = 1.0), SB.NUTS()),
-                ("Beta-Bernoulli", SB.conjugate_problem(SB.beta_bernoulli, 20; a = 1.0, b = 1.0), SB.RandomWalkMH())]
+    problems = [("Gamma-Poisson", AS.conjugate_problem(AS.gamma_poisson, 20; a = 2.0, b = 1.0), AS.NUTS()),
+                ("Beta-Bernoulli", AS.conjugate_problem(AS.beta_bernoulli, 25; a = 2.0, b = 3.0), AS.NUTS()),
+                ("Normal-Normal", AS.conjugate_problem(AS.normal_normal, 15; mu0 = 0.0, tau0 = 2.0, sigma = 1.0), AS.NUTS()),
+                ("Beta-Bernoulli", AS.conjugate_problem(AS.beta_bernoulli, 20; a = 1.0, b = 1.0), AS.RandomWalkMH())]
     plots = Any[]
     for (name, prob, spl) in problems
-        thin = spl isa SB.RandomWalkMH ? 60 : 6
-        res = SB.sbc(Random.Xoshiro(4), prob, spl; n_sims = 200, n_draws = 64, thin = thin,
+        thin = spl isa AS.RandomWalkMH ? 60 : 6
+        res = AS.sbc(Random.Xoshiro(4), prob, spl; n_sims = 200, n_draws = 64, thin = thin,
                      n_warmup = 600)
         say("| ", name, " | ", nameof(typeof(spl)), " | ", fmt(res.chisq[1], 2), " | ",
             fmt(res.pvalue[1], 4), " |")
-        counts = SB.rank_histogram(res, 1)
+        counts = AS.rank_histogram(res, 1)
         p = bar(counts; label = "", color = :steelblue, linecolor = :steelblue,
                 title = string(name, ", ", nameof(typeof(spl)), " (p = ", fmt(res.pvalue[1], 3), ")"),
                 xlabel = "rank bin", ylabel = "count", ylims = (0, maximum(counts) * 1.4))
@@ -152,14 +152,14 @@ function sbc_section()
         push!(plots, p)
     end
 
-    good = SB.conjugate_problem(SB.gamma_poisson, 5; a = 2.0, b = 1.0)
-    bad = SB.CalibrationProblem(d -> broken_gamma_poisson(d; a = 2.0, b = 1.0),
+    good = AS.conjugate_problem(AS.gamma_poisson, 5; a = 2.0, b = 1.0)
+    bad = AS.CalibrationProblem(d -> broken_gamma_poisson(d; a = 2.0, b = 1.0),
                                 good.prior_rand, good.simulate)
-    resb = SB.sbc(Random.Xoshiro(3), bad, SB.NUTS(); n_sims = 200, n_draws = 64, thin = 6,
+    resb = AS.sbc(Random.Xoshiro(3), bad, AS.NUTS(); n_sims = 200, n_draws = 64, thin = 6,
                   n_warmup = 600)
     say("| Gamma-Poisson **with the Jacobian removed** | NUTS | ", fmt(resb.chisq[1], 2),
         " | ", fmt(resb.pvalue[1], 6), " |")
-    counts = SB.rank_histogram(resb, 1)
+    counts = AS.rank_histogram(resb, 1)
     p = bar(counts; label = "", color = :firebrick, linecolor = :firebrick,
             title = string("Jacobian removed (p = ", @sprintf("%.1e", resb.pvalue[1]), ")"),
             xlabel = "rank bin", ylabel = "count", ylims = (0, maximum(counts) * 1.4))
@@ -193,22 +193,22 @@ function geweke_section()
         " correct. The step count has to be large enough that the sweep mixes.\n")
     say("| problem | sampler | z (mean) | z (second moment) |")
     say("|---|---|---:|---:|")
-    problems = [("Gamma-Poisson", SB.conjugate_problem(SB.gamma_poisson, 20; a = 2.0, b = 1.0)),
-                ("Beta-Bernoulli", SB.conjugate_problem(SB.beta_bernoulli, 25; a = 2.0, b = 3.0)),
-                ("Normal-Normal", SB.conjugate_problem(SB.normal_normal, 15; mu0 = 0.0, tau0 = 2.0, sigma = 1.0))]
+    problems = [("Gamma-Poisson", AS.conjugate_problem(AS.gamma_poisson, 20; a = 2.0, b = 1.0)),
+                ("Beta-Bernoulli", AS.conjugate_problem(AS.beta_bernoulli, 25; a = 2.0, b = 3.0)),
+                ("Normal-Normal", AS.conjugate_problem(AS.normal_normal, 15; mu0 = 0.0, tau0 = 2.0, sigma = 1.0))]
     for (name, prob) in problems
-        for (sname, spl) in (("NUTS", SB.NUTS()), ("RWM", SB.RandomWalkMH()))
-            steps = spl isa SB.RandomWalkMH ? 30 : 5
-            g = SB.geweke(Random.Xoshiro(6), prob, spl; n_marginal = 40_000,
+        for (sname, spl) in (("NUTS", AS.NUTS()), ("RWM", AS.RandomWalkMH()))
+            steps = spl isa AS.RandomWalkMH ? 30 : 5
+            g = AS.geweke(Random.Xoshiro(6), prob, spl; n_marginal = 40_000,
                           n_successive = 20_000, n_steps = steps)
             say("| ", name, " | ", sname, " | ", fmt(g.z_mean[1], 2), " | ",
                 fmt(g.z_second[1], 2), " |")
         end
     end
-    good = SB.conjugate_problem(SB.gamma_poisson, 5; a = 2.0, b = 1.0)
-    bad = SB.CalibrationProblem(d -> broken_gamma_poisson(d; a = 2.0, b = 1.0),
+    good = AS.conjugate_problem(AS.gamma_poisson, 5; a = 2.0, b = 1.0)
+    bad = AS.CalibrationProblem(d -> broken_gamma_poisson(d; a = 2.0, b = 1.0),
                                 good.prior_rand, good.simulate)
-    g = SB.geweke(Random.Xoshiro(7), bad, SB.NUTS(); n_marginal = 40_000, n_successive = 20_000)
+    g = AS.geweke(Random.Xoshiro(7), bad, AS.NUTS(); n_marginal = 40_000, n_successive = 20_000)
     say("| Gamma-Poisson **with the Jacobian removed** | NUTS | ", fmt(g.z_mean[1], 2),
         " | ", fmt(g.z_second[1], 2), " |\n")
 end
@@ -217,39 +217,39 @@ end
 # 4. Hard geometries
 # --------------------------------------------------------------------------
 
-funnel_centred(k) = SB.Model((v = SB.unconstrained(), x = SB.unconstrained(k)),
-                             t -> SB.logpdf(SB.Normal(0.0, 3.0), t.v) +
-                                  sum(SB.logpdf(SB.Normal(0.0, exp(t.v / 2)), xi) for xi in t.x))
-funnel_noncentred(k) = SB.Model((v = SB.unconstrained(), xt = SB.unconstrained(k)),
-                                t -> SB.logpdf(SB.Normal(0.0, 3.0), t.v) +
-                                     sum(SB.logpdf(SB.Normal(0.0, 1.0), xi) for xi in t.xt))
-banana(b) = SB.Model((x = SB.unconstrained(2),),
-                     t -> SB.logpdf(SB.Normal(0.0, 10.0), t.x[1]) +
-                          SB.logpdf(SB.Normal(b * (t.x[1]^2 - 100), 1.0), t.x[2]))
+funnel_centred(k) = AS.Model((v = AS.unconstrained(), x = AS.unconstrained(k)),
+                             t -> AS.logpdf(AS.Normal(0.0, 3.0), t.v) +
+                                  sum(AS.logpdf(AS.Normal(0.0, exp(t.v / 2)), xi) for xi in t.x))
+funnel_noncentred(k) = AS.Model((v = AS.unconstrained(), xt = AS.unconstrained(k)),
+                                t -> AS.logpdf(AS.Normal(0.0, 3.0), t.v) +
+                                     sum(AS.logpdf(AS.Normal(0.0, 1.0), xi) for xi in t.xt))
+banana(b) = AS.Model((x = AS.unconstrained(2),),
+                     t -> AS.logpdf(AS.Normal(0.0, 10.0), t.x[1]) +
+                          AS.logpdf(AS.Normal(b * (t.x[1]^2 - 100), 1.0), t.x[2]))
 
 function geometry_section()
     say("## 4. Hard geometries\n")
 
     # ---- correlated Gaussian
     rho = 0.95
-    target = SB.MvNormal(zeros(2), [1.0 rho; rho 1.0])
-    model = SB.Model((x = SB.unconstrained(2),), t -> SB.logpdf(target, t.x))
+    target = AS.MvNormal(zeros(2), [1.0 rho; rho 1.0])
+    model = AS.Model((x = AS.unconstrained(2),), t -> AS.logpdf(target, t.x))
     say("### Strongly correlated Gaussian, rho = 0.95\n")
     say("| sampler | sd of x1 (exact 1) | z | correlation (exact 0.95) | ESS | ESS per second |")
     say("|---|---:|---:|---:|---:|---:|")
-    entries = [("RWM, isotropic proposal", SB.RandomWalkMH(), 25_000),
-               ("RWM, adapted covariance", SB.RandomWalkMH(; adapt_cov = true), 25_000),
-               ("NUTS, unit metric", SB.NUTS(; metric = :unit), 10_000),
-               ("NUTS, diagonal metric", SB.NUTS(), 10_000),
-               ("NUTS, dense metric", SB.NUTS(; metric = :dense), 10_000)]
+    entries = [("RWM, isotropic proposal", AS.RandomWalkMH(), 25_000),
+               ("RWM, adapted covariance", AS.RandomWalkMH(; adapt_cov = true), 25_000),
+               ("NUTS, unit metric", AS.NUTS(; metric = :unit), 10_000),
+               ("NUTS, diagonal metric", AS.NUTS(), 10_000),
+               ("NUTS, dense metric", AS.NUTS(; metric = :dense), 10_000)]
     traces = Dict{String,Matrix{Float64}}()
     for (name, spl, n) in entries
-        chn = SB.sample(model, spl, n; n_warmup = 5000, n_chains = 4, rng = Random.Xoshiro(21))
+        chn = AS.sample(model, spl, n; n_warmup = 5000, n_chains = 4, rng = Random.Xoshiro(21))
         x1 = chn[Symbol("x[1]")]
         x2 = chn[Symbol("x[2]")]
         say("| ", name, " | ", fmt(std(vec(x1))), " | ", fmt(zstd(x1, 1.0), 2), " | ",
-            fmt(cor(vec(x1), vec(x2)), 4), " | ", fmt(SB.ess_bulk(x1), 0), " | ",
-            fmt(SB.ess_bulk(x1) / chn.info[:time_seconds], 0), " |")
+            fmt(cor(vec(x1), vec(x2)), 4), " | ", fmt(AS.ess_bulk(x1), 0), " | ",
+            fmt(AS.ess_bulk(x1) / chn.info[:time_seconds], 0), " |")
         traces[name] = hcat(x1[1:min(400, size(x1, 1)), 1], x2[1:min(400, size(x2, 1)), 1])
     end
     p1 = plot(traces["RWM, isotropic proposal"][:, 1]; label = "", color = :firebrick,
@@ -270,10 +270,10 @@ function geometry_section()
             ("non-centred", funnel_noncentred(9), 0.8)]
     chains = Any[]
     for (label, m, ta) in runs
-        chn = SB.sample(m, SB.NUTS(; target_accept = ta), 4000; n_warmup = 1000, n_chains = 4,
+        chn = AS.sample(m, AS.NUTS(; target_accept = ta), 4000; n_warmup = 1000, n_chains = 4,
                         rng = Random.Xoshiro(31))
-        say("| ", label, " | ", ta, " | ", fmt(std(vec(chn[:v]))), " | ", SB.divergences(chn),
-            " | ", fmt(SB.ess_bulk(chn[:v]), 0), " | ", fmt(minimum(SB.bfmi(chn)), 3), " |")
+        say("| ", label, " | ", ta, " | ", fmt(std(vec(chn[:v]))), " | ", AS.divergences(chn),
+            " | ", fmt(AS.ess_bulk(chn[:v]), 0), " | ", fmt(minimum(AS.bfmi(chn)), 3), " |")
         push!(chains, (label, ta, chn))
     end
     plots = Any[]
@@ -281,7 +281,7 @@ function geometry_section()
         v = vec(chn[:v])
         xname = label == "centred" ? Symbol("x[1]") : Symbol("xt[1]")
         x1 = vec(chn[xname])
-        div = vec(SB.sampler_stat(chn, :divergent)) .> 0
+        div = vec(AS.sampler_stat(chn, :divergent)) .> 0
         p = scatter(x1[.!div], v[.!div]; ms = 1.4, mc = :steelblue, msw = 0, label = "draws",
                     xlabel = String(xname), ylabel = "v", ylims = (-9, 9),
                     title = string(label, ", target ", ta))
@@ -303,16 +303,16 @@ function geometry_section()
         ") | divergences | ESS of x2 |")
     say("|---|---:|---:|---:|---:|")
     bplots = Any[]
-    for (label, spl) in (("NUTS, default", SB.NUTS()),
-                         ("NUTS, dense metric", SB.NUTS(; metric = :dense)),
-                         ("NUTS, target accept 0.95", SB.NUTS(; target_accept = 0.95)))
-        chn = SB.sample(banana(b), spl, 10_000; n_warmup = 1000, n_chains = 4,
+    for (label, spl) in (("NUTS, default", AS.NUTS()),
+                         ("NUTS, dense metric", AS.NUTS(; metric = :dense)),
+                         ("NUTS, target accept 0.95", AS.NUTS(; target_accept = 0.95)))
+        chn = AS.sample(banana(b), spl, 10_000; n_warmup = 1000, n_chains = 4,
                         rng = Random.Xoshiro(41))
         x1 = chn[Symbol("x[1]")]
         x2 = chn[Symbol("x[2]")]
         say("| ", label, " | ", fmt(std(vec(x1)), 3), " | ", fmt(std(vec(x2)), 3), " | ",
-            SB.divergences(chn), " | ", fmt(SB.ess_bulk(x2), 0), " |")
-        div = vec(SB.sampler_stat(chn, :divergent)) .> 0
+            AS.divergences(chn), " | ", fmt(AS.ess_bulk(x2), 0), " |")
+        div = vec(AS.sampler_stat(chn, :divergent)) .> 0
         v1 = vec(x1); v2 = vec(x2)
         p = scatter(v1[.!div], v2[.!div]; ms = 1.2, mc = :steelblue, msw = 0, label = "draws",
                     xlabel = "x1", ylabel = "x2", title = label, xlims = (-35, 35), ylims = (-5, 25))
@@ -321,13 +321,13 @@ function geometry_section()
         push!(bplots, p)
     end
     # reparameterised
-    flat = SB.Model((x1 = SB.unconstrained(), z = SB.unconstrained()),
-                    t -> SB.logpdf(SB.Normal(0.0, 10.0), t.x1) + SB.logpdf(SB.Normal(0.0, 1.0), t.z))
-    chn = SB.sample(flat, SB.NUTS(), 10_000; n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(44))
+    flat = AS.Model((x1 = AS.unconstrained(), z = AS.unconstrained()),
+                    t -> AS.logpdf(AS.Normal(0.0, 10.0), t.x1) + AS.logpdf(AS.Normal(0.0, 1.0), t.z))
+    chn = AS.sample(flat, AS.NUTS(), 10_000; n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(44))
     x1 = vec(chn[:x1])
     x2 = vec(chn[:z]) .+ b .* (x1 .^ 2 .- 100)
     say("| reparameterised, x2 = z + b(x1^2 - 100) | ", fmt(std(x1), 3), " | ", fmt(std(x2), 3),
-        " | ", SB.divergences(chn), " | - |")
+        " | ", AS.divergences(chn), " | - |")
     p = scatter(x1, x2; ms = 1.2, mc = :seagreen, msw = 0, label = "draws", xlabel = "x1",
                 ylabel = "x2", title = "reparameterised", xlims = (-35, 35), ylims = (-5, 25))
     push!(bplots, p)
@@ -351,48 +351,48 @@ function negative_control_section()
         " distribution. Those two are caught by the efficiency numbers instead.\n")
 
     rng = Random.Xoshiro(11)
-    data = [SB.rand(rng, SB.Poisson(3.0)) for _ in 1:40]
-    ref = SB.gamma_poisson(data; a = 2.0, b = 1.0)
-    exact = SB.mean(ref.posterior.lambda)
+    data = [AS.rand(rng, AS.Poisson(3.0)) for _ in 1:40]
+    ref = AS.gamma_poisson(data; a = 2.0, b = 1.0)
+    exact = AS.mean(ref.posterior.lambda)
     S = sum(data)
 
     say("| control | posterior mean | z against the true posterior | detected by |")
     say("|---|---:|---:|---|")
 
-    chn = SB.sample(broken_gamma_poisson(data), SB.NUTS(), 20_000; n_warmup = 1000,
+    chn = AS.sample(broken_gamma_poisson(data), AS.NUTS(), 20_000; n_warmup = 1000,
                     n_chains = 4, rng = Random.Xoshiro(1))
-    predicted = SB.Gamma(2.0 + S - 1, 1.0 + length(data))
+    predicted = AS.Gamma(2.0 + S - 1, 1.0 + length(data))
     say("| Jacobian term removed | ", fmt(mean(vec(chn[:lambda]))), " | ",
         fmt(zmean(chn[:lambda], exact), 1), " | conjugate check, SBC, Geweke |")
     say("\nThe broken sampler is not merely wrong: omitting `log|dlambda/dy| = y`",
         " divides the density by `lambda`, which is exactly a shift of one in the Gamma",
         " shape, so it is a *correct* sampler for `Gamma(a + S - 1, b + n)`, mean ",
-        fmt(SB.mean(predicted)), ". The observed mean is ", fmt(mean(vec(chn[:lambda]))),
+        fmt(AS.mean(predicted)), ". The observed mean is ", fmt(mean(vec(chn[:lambda]))),
         ".\n")
 
     say("| control | effect | R-hat | detected by |")
     say("|---|---|---:|---|")
-    good = SB.sample(ref.model, SB.NUTS(), 20_000; n_warmup = 1000, n_chains = 4,
+    good = AS.sample(ref.model, AS.NUTS(), 20_000; n_warmup = 1000, n_chains = 4,
                      rng = Random.Xoshiro(2))
-    eff(c) = SB.ess_bulk(c[:lambda]) / sum(SB.sampler_stat(c, :n_leapfrog))
-    noaccept = SB.sample(ref.model,
-                         SB.RandomWalkMH(; rule = AlwaysAccept(), adapt_scale = false, scale = 0.3),
+    eff(c) = AS.ess_bulk(c[:lambda]) / sum(AS.sampler_stat(c, :n_leapfrog))
+    noaccept = AS.sample(ref.model,
+                         AS.RandomWalkMH(; rule = AlwaysAccept(), adapt_scale = false, scale = 0.3),
                          20_000; n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(3))
     say("| Metropolis correction removed (always accept) | posterior mean ",
         @sprintf("%.2e", mean(vec(noaccept[:lambda]))), " against a true ", fmt(exact, 2),
-        " | ", fmt(SB.rhat(noaccept[:lambda]), 2), " | anything |")
+        " | ", fmt(AS.rhat(noaccept[:lambda]), 2), " | anything |")
     for (label, factor) in (("gradient scaled by 1.1", 1.1), ("gradient scaled by 3", 3.0))
-        c = SB.sample(ref.model, SB.NUTS(; backend = ScaledGradient(factor)), 20_000;
+        c = AS.sample(ref.model, AS.NUTS(; backend = ScaledGradient(factor)), 20_000;
                       n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(2))
         say("| ", label, " | mean z = ", fmt(zmean(c[:lambda], exact), 1), ", ESS per gradient ",
-            fmt(eff(c), 5), " against ", fmt(eff(good), 5), " | ", fmt(SB.rhat(c[:lambda]), 3),
+            fmt(eff(c), 5), " against ", fmt(eff(good), 5), " | ", fmt(AS.rhat(c[:lambda]), 3),
             " | efficiency and convergence diagnostics |")
     end
-    never = SB.sample(ref.model, SB.NUTS(; uturn = NeverUTurn(), max_treedepth = 6), 20_000;
+    never = AS.sample(ref.model, AS.NUTS(; uturn = NeverUTurn(), max_treedepth = 6), 20_000;
                       n_warmup = 1000, n_chains = 4, rng = Random.Xoshiro(4))
     say("| U-turn criterion that never fires | mean z = ", fmt(zmean(never[:lambda], exact), 1),
         ", ESS per gradient ", fmt(eff(never), 5), " against ", fmt(eff(good), 5), " | ",
-        fmt(SB.rhat(never[:lambda]), 3), " | efficiency only |")
+        fmt(AS.rhat(never[:lambda]), 3), " | efficiency only |")
     say("\nThe gradient scaled by 3 is worth reading carefully. Its `z` of about -3",
         " is not evidence of bias: the effective sample size has collapsed by four",
         " orders of magnitude, so the standard error in the denominator is itself",
@@ -401,17 +401,17 @@ function negative_control_section()
         " gradient is an efficiency bug, and only a large one is visible at all.\n")
 end
 
-struct AlwaysAccept <: SB.AcceptanceRule end
-SB.accept_prob(::AlwaysAccept, logratio::Real) = 1.0
-struct ScaledGradient <: SB.ADBackend
+struct AlwaysAccept <: AS.AcceptanceRule end
+AS.accept_prob(::AlwaysAccept, logratio::Real) = 1.0
+struct ScaledGradient <: AS.ADBackend
     factor::Float64
 end
-function SB.logdensity_and_gradient(b::ScaledGradient, f, y::AbstractVector)
-    v, g = SB.logdensity_and_gradient(SB.ForwardDiffAD(), f, y)
+function AS.logdensity_and_gradient(b::ScaledGradient, f, y::AbstractVector)
+    v, g = AS.logdensity_and_gradient(AS.ForwardDiffAD(), f, y)
     return v, g .* b.factor
 end
-struct NeverUTurn <: SB.UTurnCriterion end
-SB.tree_continues(::NeverUTurn, metric, t) = true
+struct NeverUTurn <: AS.UTurnCriterion end
+AS.tree_continues(::NeverUTurn, metric, t) = true
 
 # --------------------------------------------------------------------------
 # 6. Diagnostics and variational inference
@@ -436,7 +436,7 @@ function diagnostics_section()
                 x[i, c] = z
             end
         end
-        say("| ", r, " | ", fmt(SB.ess(x), 0), " | ", fmt(n * m * (1 - r) / (1 + r), 0), " |")
+        say("| ", r, " | ", fmt(AS.ess(x), 0), " | ", fmt(n * m * (1 - r) / (1 + r), 0), " |")
     end
     say("\nThe estimate at `r = 0.99` is low by about a fifth, and that is the",
         " expected behaviour rather than an error: Geyer's initial positive sequence",
@@ -447,8 +447,8 @@ function diagnostics_section()
 
     say("## 7. Variational inference\n")
     rho = 0.9
-    target = SB.MvNormal(zeros(2), [1.0 rho; rho 1.0])
-    model = SB.Model((x = SB.unconstrained(2),), t -> SB.logpdf(target, t.x))
+    target = AS.MvNormal(zeros(2), [1.0 rho; rho 1.0])
+    model = AS.Model((x = AS.unconstrained(2),), t -> AS.logpdf(target, t.x))
     say("For a bivariate normal the optimal mean-field approximation has marginal",
         " standard deviation `sqrt(1 - rho^2) = ", fmt(sqrt(1 - rho^2), 3), "`, so the",
         " understatement of variance is a closed form to check against rather than a",
@@ -456,12 +456,12 @@ function diagnostics_section()
     say("| family | sd of x1 | expected | correlation | ELBO | exact log Z |")
     say("|---|---:|---:|---:|---:|---:|")
     traces = Any[]
-    for (fam, label, expected) in ((SB.MeanField(), "mean field", sqrt(1 - rho^2)),
-                                   (SB.FullRank(), "full rank", 1.0))
-        res = SB.sample(model, SB.ADVI(; family = fam, n_samples = 16, step_size = 0.02);
+    for (fam, label, expected) in ((AS.MeanField(), "mean field", sqrt(1 - rho^2)),
+                                   (AS.FullRank(), "full rank", 1.0))
+        res = AS.sample(model, AS.ADVI(; family = fam, n_samples = 16, step_size = 0.02);
                         rng = Random.Xoshiro(9))
-        chn = SB.posterior_samples(res, 40_000; rng = Random.Xoshiro(10))
-        e, se = SB.elbo_with_error(res; rng = Random.Xoshiro(11), n_samples = 200_000)
+        chn = AS.posterior_samples(res, 40_000; rng = Random.Xoshiro(10))
+        e, se = AS.elbo_with_error(res; rng = Random.Xoshiro(11), n_samples = 200_000)
         say("| ", label, " | ", fmt(std(vec(chn[Symbol("x[1]")])), 3), " | ", fmt(expected, 3),
             " | ", fmt(cor(vec(chn[Symbol("x[1]")]), vec(chn[Symbol("x[2]")])), 3), " | ",
             fmt(e, 4), " ± ", fmt(se, 4), " | 0.000 |")
@@ -481,15 +481,15 @@ function diagnostics_section()
         " and mean field cannot represent the correlation.\n")
 
     # SMC diagnostics figure
-    counts = [SB.rand(Random.Xoshiro(5), SB.Poisson(4.0)) for _ in 1:60]
-    gp = SB.gamma_poisson(counts; a = 2.0, b = 1.0)
-    res = SB.sample(gp.tempered, SB.SMC(; n_particles = 2000); rng = Random.Xoshiro(6))
+    counts = [AS.rand(Random.Xoshiro(5), AS.Poisson(4.0)) for _ in 1:60]
+    gp = AS.gamma_poisson(counts; a = 2.0, b = 1.0)
+    res = AS.sample(gp.tempered, AS.SMC(; n_particles = 2000); rng = Random.Xoshiro(6))
     p1 = plot(res.betas[2:end], res.ess_trace; marker = :circle, lw = 2, label = "",
               xlabel = "inverse temperature", ylabel = "effective sample size",
               title = "SMC tempering schedule", ylims = (0, 2100))
     hline!(p1, [0.5 * 2000]; ls = :dash, color = :black, label = "resampling threshold")
     ns = [250, 500, 1000, 2000, 4000, 8000]
-    errs = [std([SB.sample(gp.tempered, SB.SMC(; n_particles = n);
+    errs = [std([AS.sample(gp.tempered, AS.SMC(; n_particles = n);
                            rng = Random.Xoshiro(200 + r)).logZ for r in 1:8]) for n in ns]
     p2 = plot(ns, errs; marker = :circle, lw = 2, xscale = :log10, yscale = :log10, label = "observed",
               xlabel = "particles", ylabel = "standard deviation of log Z",
@@ -515,30 +515,30 @@ function extras_section()
         " construction. The claim to verify is that marginalisation is *exact* rather",
         " than approximate, so the network's marginal is compared against numerical",
         " integration of its own joint.\n")
-    comp1 = [SB.Normal(-2.0, 1.0), SB.Normal(0.0, 1.0)]
-    comp2 = [SB.Normal(2.0, 0.5), SB.Normal(1.0, 2.0)]
-    spn = SB.naive_bayes_spn([0.3, 0.7], [comp1, comp2])
+    comp1 = [AS.Normal(-2.0, 1.0), AS.Normal(0.0, 1.0)]
+    comp2 = [AS.Normal(2.0, 0.5), AS.Normal(1.0, 2.0)]
+    spn = AS.naive_bayes_spn([0.3, 0.7], [comp1, comp2])
     say("| quantity | network | numerical integration |")
     say("|---|---:|---:|")
     h = 0.002
     for x1 in (-1.0, 0.5, 2.5)
-        numeric = sum(exp(SB.logpdf(spn, [x1, x2])) * h for x2 in -30:h:30)
-        say("| marginal density at x1 = ", x1, " | ", fmt(exp(SB.logpdf(spn, [x1, missing])), 8),
+        numeric = sum(exp(AS.logpdf(spn, [x1, x2])) * h for x2 in -30:h:30)
+        say("| marginal density at x1 = ", x1, " | ", fmt(exp(AS.logpdf(spn, [x1, missing])), 8),
             " | ", fmt(numeric, 8), " |")
     end
     hh = 0.02
-    total = sum(exp(SB.logpdf(spn, [x1, x2])) * hh^2 for x1 in -8:hh:8, x2 in -12:hh:12)
-    say("| total mass | ", fmt(exp(SB.logpdf(spn, [missing, missing])), 8), " | ",
+    total = sum(exp(AS.logpdf(spn, [x1, x2])) * hh^2 for x1 in -8:hh:8, x2 in -12:hh:12)
+    say("| total mass | ", fmt(exp(AS.logpdf(spn, [missing, missing])), 8), " | ",
         fmt(total, 8), " |\n")
 
-    leaves = [[SB.Normal(-2.0, 1.0)], [SB.Normal(2.0, 1.0)]]
-    build = data -> SB.Model((w = SB.simplex(2),),
-                             t -> SB.logpdf(SB.Dirichlet([2.0, 2.0]), t.w) +
-                                  sum(SB.logpdf(SB.naive_bayes_spn(t.w, leaves), [d]) for d in data))
-    prior_rand = rng -> (w = SB.rand(rng, SB.Dirichlet([2.0, 2.0])),)
-    simulate = (theta, rng) -> [SB.rand(rng, SB.naive_bayes_spn(theta.w, leaves), 1)[1] for _ in 1:30]
-    res = SB.sbc(Random.Xoshiro(12), SB.CalibrationProblem(build, prior_rand, simulate),
-                 SB.NUTS(); n_sims = 200, n_draws = 64, thin = 5, n_warmup = 400)
+    leaves = [[AS.Normal(-2.0, 1.0)], [AS.Normal(2.0, 1.0)]]
+    build = data -> AS.Model((w = AS.simplex(2),),
+                             t -> AS.logpdf(AS.Dirichlet([2.0, 2.0]), t.w) +
+                                  sum(AS.logpdf(AS.naive_bayes_spn(t.w, leaves), [d]) for d in data))
+    prior_rand = rng -> (w = AS.rand(rng, AS.Dirichlet([2.0, 2.0])),)
+    simulate = (theta, rng) -> [AS.rand(rng, AS.naive_bayes_spn(theta.w, leaves), 1)[1] for _ in 1:30]
+    res = AS.sbc(Random.Xoshiro(12), AS.CalibrationProblem(build, prior_rand, simulate),
+                 AS.NUTS(); n_sims = 200, n_draws = 64, thin = 5, n_warmup = 400)
     say("The sum weights live on a simplex, so inferring them is an ordinary model",
         " in this package. There is no closed-form posterior, and calibration is the",
         " check: chi-square p values of ",
@@ -551,9 +551,9 @@ function extras_section()
         " every proposal the sampler makes.\n")
     rng = Random.Xoshiro(5)
     truth = (x0 = [0.6, 0.3, 0.1], f = [0.8, -0.5])
-    states = SB.simplex_trajectory(truth.x0, vcat(0.0, truth.f), 6)
-    counts = [SB.rand(rng, SB.Multinomial(200, x)) for x in states]
-    chn = SB.sample(SB.replicator_model(counts, 200), SB.NUTS(), 4000; n_warmup = 1000,
+    states = AS.simplex_trajectory(truth.x0, vcat(0.0, truth.f), 6)
+    counts = [AS.rand(rng, AS.Multinomial(200, x)) for x in states]
+    chn = AS.sample(AS.replicator_model(counts, 200), AS.NUTS(), 4000; n_warmup = 1000,
                     n_chains = 4, rng = Random.Xoshiro(6))
     say("| parameter | truth | posterior mean | 2.5% | 97.5% | ESS | R-hat |")
     say("|---|---:|---:|---:|---:|---:|---:|")
@@ -561,11 +561,11 @@ function extras_section()
                       (Symbol("f[1]"), 0.8), (Symbol("f[2]"), -0.5))
         v = vec(chn[name])
         say("| ", name, " | ", fmt(t, 3), " | ", fmt(mean(v), 3), " | ", fmt(quantile(v, 0.025), 3),
-            " | ", fmt(quantile(v, 0.975), 3), " | ", fmt(SB.ess_bulk(chn[name]), 0), " | ",
-            fmt(SB.rhat(chn[name]), 3), " |")
+            " | ", fmt(quantile(v, 0.975), 3), " | ", fmt(AS.ess_bulk(chn[name]), 0), " | ",
+            fmt(AS.rhat(chn[name]), 3), " |")
     end
-    prob = SB.replicator_problem(3, 6, 40; alpha = 1.0, fitness_scale = 1.0)
-    sres = SB.sbc(Random.Xoshiro(11), prob, SB.NUTS(); n_sims = 200, n_draws = 64, thin = 5,
+    prob = AS.replicator_problem(3, 6, 40; alpha = 1.0, fitness_scale = 1.0)
+    sres = AS.sbc(Random.Xoshiro(11), prob, AS.NUTS(); n_sims = 200, n_draws = 64, thin = 5,
                   n_warmup = 400)
     say("\nSimulation based calibration over 200 replications of the whole model,",
         " which is what verifies the simplex transform end to end in a setting with",
@@ -575,7 +575,7 @@ function extras_section()
     for j in eachindex(sres.names)
         say("| ", sres.names[j], " | ", fmt(sres.chisq[j], 2), " | ", fmt(sres.pvalue[j], 4), " |")
     end
-    counts_hist = [SB.rank_histogram(sres, j) for j in eachindex(sres.names)]
+    counts_hist = [AS.rank_histogram(sres, j) for j in eachindex(sres.names)]
     plots = [bar(counts_hist[j]; label = "", color = :steelblue, linecolor = :steelblue,
                  title = string(sres.names[j], " (p = ", fmt(sres.pvalue[j], 3), ")"),
                  xlabel = "rank bin", ylabel = "count",
@@ -583,7 +583,7 @@ function extras_section()
     for p in plots
         hline!(p, [200 / sres.n_bins]; color = :black, lw = 2, label = "uniform")
     end
-    traj = SB.simplex_trajectory([0.5, 0.3, 0.2], [0.0, 0.6, -0.3], 25)
+    traj = AS.simplex_trajectory([0.5, 0.3, 0.2], [0.0, 0.6, -0.3], 25)
     ptraj = plot(; xlabel = "t", ylabel = "state", title = "replicator trajectory", ylims = (0, 1))
     for k in 1:3
         plot!(ptraj, [x[k] for x in traj]; lw = 2, label = string("x", k))

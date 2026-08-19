@@ -94,6 +94,6 @@ extension, which Julia refuses to do during precompilation.
 function logdensity_and_gradient(b::ADBackend, f, y::AbstractVector)
     b isa ReverseDiffAD &&
         error("ReverseDiffAD needs ReverseDiff to be loaded: `using ReverseDiff` brings in " *
-              "the ScratchBayesReverseDiffExt package extension that defines this method.")
+              "the AssayReverseDiffExt package extension that defines this method.")
     error("no gradient method for backend $(typeof(b))")
 end

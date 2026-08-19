@@ -1,9 +1,9 @@
-using ScratchBayes
+using Assay
 using Test, Random, Statistics, LinearAlgebra
 
 include("testutils.jl")
 
-@testset "ScratchBayes" begin
+@testset "Assay" begin
     include("test_utils.jl")
     include("test_densities.jl")
     include("test_transforms.jl")

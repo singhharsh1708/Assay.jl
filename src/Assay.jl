@@ -1,5 +1,5 @@
 """
-    ScratchBayes
+    Assay
 
 Bayesian inference implemented from first principles in Julia: transforms,
 model interface, MCMC (random walk Metropolis-Hastings, HMC, NUTS), sequential
@@ -16,7 +16,7 @@ The layering is strict and one-directional:
 A transform knows nothing about models, a model knows nothing about samplers,
 and a sampler sees only a log density and a gradient on `R^n`.
 """
-module ScratchBayes
+module Assay
 
 using LinearAlgebra
 using Random

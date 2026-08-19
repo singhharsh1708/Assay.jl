@@ -1,9 +1,14 @@
-# ScratchBayes.jl
+# Assay.jl
 
 Bayesian inference implemented from first principles in Julia: MCMC (random walk
 Metropolis-Hastings, HMC, NUTS), sequential Monte Carlo, mean-field and
 full-rank ADVI, a model interface with a hand-written transform layer, and the
 diagnostics needed to tell whether any of it is right.
+
+An assay is the test you run to find out what something is actually made of.
+That is the organising idea here: a sampler that produces numbers is easy, and
+most of this repository is the apparatus for deciding whether the numbers are
+the right ones.
 
 No inference library is a dependency. ForwardDiff supplies gradients, with
 ReverseDiff available through a package extension; the densities, the samplers,
@@ -169,7 +174,7 @@ and its Jacobian end to end.
 ## Quick start
 
 ```julia
-using ScratchBayes
+using Assay
 
 data = [1, 0, 1, 1, 0, 1, 1, 1, 0, 1]
 

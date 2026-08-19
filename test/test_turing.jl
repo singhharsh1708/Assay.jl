@@ -16,7 +16,7 @@ Monte Carlo standard error of the two estimates?
 """
 function agree(x::AbstractMatrix, y::AbstractMatrix; nse::Real = 4)
     dx = mean(vec(x)) - mean(vec(y))
-    se = sqrt(SB.mcse_mean(x)^2 + SB.mcse_mean(y)^2)
+    se = sqrt(AS.mcse_mean(x)^2 + AS.mcse_mean(y)^2)
     ok = abs(dx) <= nse * se
     ok || @info "cross-check mismatch" ours=mean(vec(x)) turing=mean(vec(y)) se=se z=dx / se
     return ok
@@ -56,12 +56,12 @@ turing_run(model, seed; n = 2000, chains = 4) =
 
     @testset "Beta-Bernoulli: both against the closed form, then against each other" begin
         data = [rand(rng) < 0.35 ? 1 : 0 for _ in 1:60]
-        ref = SB.beta_bernoulli(data; a = 2.0, b = 2.0)
-        ours = SB.sample(ref.model, SB.NUTS(), 2000; n_warmup = 1000, n_chains = 4,
+        ref = AS.beta_bernoulli(data; a = 2.0, b = 2.0)
+        ours = AS.sample(ref.model, AS.NUTS(), 2000; n_warmup = 1000, n_chains = 4,
                          rng = Random.Xoshiro(1))
         theirs = Array(turing_run(turing_bernoulli(data), 1)[:p])
-        @test check_mean(ours[:p], SB.mean(ref.posterior.p))
-        @test check_mean(theirs, SB.mean(ref.posterior.p))
+        @test check_mean(ours[:p], AS.mean(ref.posterior.p))
+        @test check_mean(theirs, AS.mean(ref.posterior.p))
         @test agree(ours[:p], theirs)
         @test std(vec(ours[:p])) ≈ std(vec(theirs)) rtol = 0.05
     end
@@ -69,13 +69,13 @@ turing_run(model, seed; n = 2000, chains = 4) =
     @testset "linear regression with a positive scale" begin
         x = randn(rng, 40)
         y = 1.0 .+ 2.0 .* x .+ 0.5 .* randn(rng, 40)
-        model = SB.Model((a = SB.unconstrained(), b = SB.unconstrained(), sigma = SB.positive()),
-                         t -> SB.logpdf(SB.Normal(0.0, 5.0), t.a) +
-                              SB.logpdf(SB.Normal(0.0, 5.0), t.b) +
-                              SB.logpdf(SB.Exponential(1.0), t.sigma) +
-                              sum(SB.logpdf(SB.Normal(t.a + t.b * x[i], t.sigma), y[i])
+        model = AS.Model((a = AS.unconstrained(), b = AS.unconstrained(), sigma = AS.positive()),
+                         t -> AS.logpdf(AS.Normal(0.0, 5.0), t.a) +
+                              AS.logpdf(AS.Normal(0.0, 5.0), t.b) +
+                              AS.logpdf(AS.Exponential(1.0), t.sigma) +
+                              sum(AS.logpdf(AS.Normal(t.a + t.b * x[i], t.sigma), y[i])
                                   for i in eachindex(y)))
-        ours = SB.sample(model, SB.NUTS(), 2000; n_warmup = 1000, n_chains = 4,
+        ours = AS.sample(model, AS.NUTS(), 2000; n_warmup = 1000, n_chains = 4,
                          rng = Random.Xoshiro(2))
         theirs = turing_run(turing_regression(x, y), 2)
         for name in (:a, :b, :sigma)
@@ -89,14 +89,14 @@ turing_run(model, seed; n = 2000, chains = 4) =
     @testset "eight schools, non-centred" begin
         y = [28.0, 8, -3, 7, -1, 1, 18, 12]
         s = [15.0, 10, 16, 11, 9, 11, 10, 18]
-        model = SB.Model((mu = SB.unconstrained(), tau = SB.positive(),
-                          theta_raw = SB.unconstrained(8)),
-                         t -> SB.logpdf(SB.Normal(0.0, 5.0), t.mu) +
-                              SB.logpdf(SB.Cauchy(0.0, 5.0), t.tau) + log(2) +
-                              sum(SB.logpdf(SB.Normal(0.0, 1.0), r) for r in t.theta_raw) +
-                              sum(SB.logpdf(SB.Normal(t.mu + t.tau * t.theta_raw[i], s[i]), y[i])
+        model = AS.Model((mu = AS.unconstrained(), tau = AS.positive(),
+                          theta_raw = AS.unconstrained(8)),
+                         t -> AS.logpdf(AS.Normal(0.0, 5.0), t.mu) +
+                              AS.logpdf(AS.Cauchy(0.0, 5.0), t.tau) + log(2) +
+                              sum(AS.logpdf(AS.Normal(0.0, 1.0), r) for r in t.theta_raw) +
+                              sum(AS.logpdf(AS.Normal(t.mu + t.tau * t.theta_raw[i], s[i]), y[i])
                                   for i in eachindex(y)))
-        ours = SB.sample(model, SB.NUTS(), 4000; n_warmup = 1000, n_chains = 4,
+        ours = AS.sample(model, AS.NUTS(), 4000; n_warmup = 1000, n_chains = 4,
                          rng = Random.Xoshiro(3))
         theirs = turing_run(turing_schools(y, s), 3; n = 4000)
         @test agree(ours[:mu], Array(theirs[:mu]); nse = 4)
@@ -115,7 +115,7 @@ turing_run(model, seed; n = 2000, chains = 4) =
         their_rhat = first(MCMCChains.rhat(chn)[:, :rhat])
         # Same estimators (rank-normalised split R-hat, Geyer-truncated ESS),
         # independently implemented: they should land within a few percent.
-        @test SB.ess_bulk(x) ≈ their_ess rtol = 0.1
-        @test SB.rhat(x) ≈ their_rhat rtol = 0.02
+        @test AS.ess_bulk(x) ≈ their_ess rtol = 0.1
+        @test AS.rhat(x) ≈ their_rhat rtol = 0.02
     end
 end
