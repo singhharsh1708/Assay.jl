@@ -24,8 +24,11 @@ the Poisson sampler's probability mass function is checked atom by atom above
 the branch point at `lambda = 30`, because an approximate sampler would
 invalidate every calibration test that uses it.
 
-**Gradients.** Forward-mode agrees with central differences to `1e-5` relative
-on a model containing an unconstrained, a positive and a simplex parameter.
+**Gradients.** Forward mode, reverse mode (with and without a compiled tape)
+and central differences all agree on a model containing an unconstrained, a
+positive and a simplex parameter, to machine precision between the automatic
+methods and `1e-5` relative against finite differences. Reverse mode reproduces
+the conjugate posterior through the full sampler.
 Dropping the Jacobian changes the gradient, which is asserted rather than
 assumed.
 
@@ -156,11 +159,10 @@ Polyak-Ruppert averaging of the iterates; no step size search of the kind Stan
 performs. On the models here it converges, but a poorly scaled model will need
 `step_size` set by hand.
 
-**No reverse-mode automatic differentiation.** `ReverseDiffAD` exists as a type
-and errors unless a package extension supplies the method; the extension is not
-written. Forward mode is the right default at these dimensions - the benchmark
-shows the cost crossing over around 50 parameters - but a serious model would
-want reverse mode.
+**Enzyme and Zygote are not wired up.** ReverseDiff is, through a package
+extension, with optional tape compilation; forward mode remains the default
+because the models here are small. Adding another backend is one method of
+`logdensity_and_gradient`, but no other backend has been measured.
 
 **Effective sample size is `O(n * lag)`.** Autocovariances are accumulated
 directly rather than through a fast Fourier transform. Geyer truncation usually

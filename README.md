@@ -5,10 +5,11 @@ Metropolis-Hastings, HMC, NUTS), sequential Monte Carlo, mean-field and
 full-rank ADVI, a model interface with a hand-written transform layer, and the
 diagnostics needed to tell whether any of it is right.
 
-No inference library is a dependency. ForwardDiff supplies gradients; the
-densities, the samplers, the bijectors, the effective sample size and R-hat
-estimators are all in [`src/`](src/). Distributions.jl and Turing.jl appear in
-the test suite only, as oracles.
+No inference library is a dependency. ForwardDiff supplies gradients, with
+ReverseDiff available through a package extension; the densities, the samplers,
+the bijectors, the effective sample size and R-hat estimators are all in
+[`src/`](src/). Distributions.jl and Turing.jl appear in the test suite only, as
+oracles. Julia 1.10 or later; MIT licensed.
 
 ## Verification first
 
@@ -254,13 +255,15 @@ julia --project=bench -t 4 bench/benchmarks.jl                # regenerates docs
 
 ## Test suite
 
-658 assertions, about 4 minutes on 4 threads:
+676 assertions, about 7 minutes on 4 threads - of which roughly 3 are Julia
+recompiling after the suite loads Turing and ReverseDiff, which is why those two
+files are included last:
 
 | file | what it establishes |
 |---|---|
 | `test_utils.jl`, `test_densities.jl` | numerics in the tails; every density against Distributions.jl; every sampler against its own density |
 | `test_transforms.jl` | round trips, Jacobians against automatic differentiation, pushforward densities integrating to one |
-| `test_model.jl` | log density and gradient, with and without the Jacobian term |
+| `test_model.jl`, `test_ad.jl` | log density and gradient, with and without the Jacobian term; forward, reverse and finite-difference backends agreeing |
 | `test_mh_conjugate.jl`, `test_hmc_nuts.jl` | closed-form posteriors for every sampler, adaptation, metrics, divergence reporting |
 | `test_smc.jl`, `test_advi.jl` | unbiased resampling, the tempering schedule, log evidence, the ELBO bound, the mean-field variance deficit |
 | `test_diagnostics.jl` | ESS against AR(1) theory, split R-hat, rank normalisation, coverage of the Monte Carlo standard error |

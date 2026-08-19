@@ -18,5 +18,12 @@ include("testutils.jl")
     include("test_geometries.jl")
     include("test_spn.jl")
     include("test_dynamics.jl")
+    # Order matters here, and by minutes rather than seconds. Loading a large
+    # package invalidates compiled methods, so everything that runs afterwards
+    # pays to recompile. Measured on this suite: with ReverseDiff loaded before
+    # Turing, Turing's own load takes 131 seconds instead of 13 and the suite
+    # takes 17 minutes; with it after, 7. Without these two files at all it is
+    # under 4. Heavy dependencies go last, and ReverseDiff after Turing.
     include("test_turing.jl")
+    include("test_ad.jl")
 end

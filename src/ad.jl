@@ -20,11 +20,25 @@ struct ForwardDiffAD <: ADBackend end
 """
     ReverseDiffAD(; compile = false)
 
-Reverse-mode AD, provided by a package extension that loads only if the user has
-ReverseDiff available. Worth it once the parameter dimension is in the hundreds.
+Reverse-mode automatic differentiation, provided by a package extension that
+loads only when the user has ReverseDiff available. Worth it once the parameter
+dimension is in the hundreds: forward mode costs one pass per parameter, reverse
+mode one pass in total.
+
+With `compile = true` the tape is recorded once and reused, which removes most
+of the per-call overhead. That is only valid for a log density whose control
+flow does not depend on the parameter values - no branching on `theta`, no early
+returns from a support check. Every density in this package returns `-Inf`
+outside the support through arithmetic rather than a branch on the parameter,
+but a user model that branches must leave `compile` off.
+
+The backend is mutable because the compiled tape is cached in it, so a given
+`ReverseDiffAD()` instance belongs to one model.
 """
-Base.@kwdef struct ReverseDiffAD <: ADBackend
+Base.@kwdef mutable struct ReverseDiffAD <: ADBackend
     compile::Bool = false
+    tape::Any = nothing
+    tape_length::Int = -1
 end
 
 """
@@ -68,6 +82,18 @@ function logdensity_and_gradient(b::FiniteDiffAD, f, y::AbstractVector)
     return v, g
 end
 
-function logdensity_and_gradient(::ReverseDiffAD, f, y::AbstractVector)
-    error("ReverseDiffAD requires ReverseDiff to be loaded: `using ReverseDiff`.")
+"""
+    logdensity_and_gradient(backend::ADBackend, f, y)
+
+Fallback for a backend with no method. `ReverseDiffAD` lands here until
+ReverseDiff is loaded, at which point the package extension supplies the real
+method. Defining the fallback on the abstract type rather than on
+`ReverseDiffAD` matters: a concrete stub would be *overwritten* by the
+extension, which Julia refuses to do during precompilation.
+"""
+function logdensity_and_gradient(b::ADBackend, f, y::AbstractVector)
+    b isa ReverseDiffAD &&
+        error("ReverseDiffAD needs ReverseDiff to be loaded: `using ReverseDiff` brings in " *
+              "the ScratchBayesReverseDiffExt package extension that defines this method.")
+    error("no gradient method for backend $(typeof(b))")
 end
