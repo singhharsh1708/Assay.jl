@@ -42,7 +42,7 @@ export logpdf, loglikelihood, cdf
 
 # Layer 2: transforms
 include("transforms.jl")
-export AbstractTransform, udim, cdim, to_constrained, to_unconstrained
+export AbstractTransform, udim, cdim, to_constrained, to_unconstrained, flat_names, flatten
 export unconstrained, positive, unit, interval, lower, upper, simplex, ordered,
        corr_cholesky, correlation_matrix
 
