@@ -65,6 +65,69 @@ end
         @test 0.85 <= hits / trials <= 1.0               # nominal coverage is 0.95
     end
 
+    @testset "the fast Fourier transform against a direct one" begin
+        # A hand-written FFT is only worth having if it is checked against the
+        # definition it is an optimisation of.
+        function dft(x)
+            n = length(x)
+            [sum(x[j + 1] * cis(-2pi * k * j / n) for j in 0:(n - 1)) for k in 0:(n - 1)]
+        end
+        for n in (2, 8, 64, 256)
+            v = ComplexF64.(randn(rng, n), randn(rng, n))
+            @test AS.fft!(copy(v)) ≈ dft(v) rtol = 1e-10
+            @test AS.ifft!(AS.fft!(copy(v))) ≈ v rtol = 1e-12
+        end
+        @test_throws ArgumentError AS.fft!(ComplexF64.(randn(rng, 6)))
+        @test AS.next_power_of_two(1) == 1
+        @test AS.next_power_of_two(5) == 8
+        @test AS.next_power_of_two(1024) == 1024
+    end
+
+    @testset "autocovariance by FFT equals the direct sum" begin
+        for n in (500, 4096)
+            v = randn(rng, n)
+            @test AS.autocov_fft(v, 50) ≈ AS.autocov(v, 50) atol = 1e-12
+        end
+        # and it works out to every lag, which is what lets ESS stop truncating
+        v = randn(rng, 1024)
+        @test length(AS.autocov_fft(v)) == 1024
+        @test AS.autocov_fft(v)[1] ≈ Statistics.var(v) * (length(v) - 1) / length(v)
+    end
+
+    @testset "Monte Carlo standard errors against closed forms" begin
+        # For independent normal draws every one of these has an analytic value.
+        n, m = 20_000, 4
+        x = reshape(randn(rng, n * m), n, m)
+        N = n * m
+
+        # the median of a normal sample: sd * sqrt(pi / 2) / sqrt(N)
+        @test AS.mcse_quantile(x, 0.5) ≈ sqrt(pi / 2) / sqrt(N) rtol = 0.2
+
+        # a general quantile: sqrt(p (1-p) / N) / density at that quantile
+        for p in (0.1, 0.25, 0.75, 0.9)
+            q = AS.quantile(AS.Normal(0.0, 1.0), p)
+            analytic = sqrt(p * (1 - p) / N) / exp(AS.logpdf(AS.Normal(0.0, 1.0), q))
+            @test AS.mcse_quantile(x, p) ≈ analytic rtol = 0.25
+        end
+
+        # the standard deviation of a normal sample: sd / sqrt(2N)
+        @test AS.mcse_std(x) ≈ 1 / sqrt(2N) rtol = 0.15
+
+        # and the effective sample size for a quantile is the draw count when
+        # the draws are independent
+        @test AS.ess_quantile(x, 0.5) ≈ N rtol = 0.1
+        @test_throws DomainError AS.mcse_quantile(x, 0.0)
+        @test_throws DomainError AS.ess_quantile(x, 1.0)
+    end
+
+    @testset "quantile error grows where the density is small" begin
+        # The point of estimating quantile error on the probability scale is
+        # that a normal approximation on the value scale fails in the tails.
+        x = reshape(randn(rng, 40_000), 10_000, 4)
+        @test AS.mcse_quantile(x, 0.99) > AS.mcse_quantile(x, 0.5)
+        @test AS.mcse_quantile(x, 0.01) > AS.mcse_quantile(x, 0.5)
+    end
+
     @testset "normal quantile function" begin
         for p in (1e-8, 0.001, 0.025, 0.5, 0.975, 1 - 1e-8)
             @test AS.cdf(AS.Normal(0.0, 1.0), AS.norminvcdf(p)) ≈ p rtol = 1e-8

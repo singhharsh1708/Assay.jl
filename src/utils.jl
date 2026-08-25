@@ -88,3 +88,88 @@ function softmax!(w::AbstractVector, logw::AbstractVector)
     end
     return lse
 end
+
+# --------------------------------------------------------------------------
+# A radix-2 fast Fourier transform
+#
+# Autocovariances are what effective sample size is built on, and computing
+# them directly costs O(n * lag). Through the Wiener-Khinchin theorem an FFT
+# turns that into O(n log n) and, more usefully, makes it affordable to use
+# every lag rather than truncating at an arbitrary maximum.
+#
+# This is here rather than as a dependency for the same reason the densities
+# are: the point of the package is that every number traces to code in it. It
+# is checked against a direct discrete Fourier transform in the test suite.
+# --------------------------------------------------------------------------
+
+"""
+    next_power_of_two(n)
+
+Smallest power of two at least `n`.
+"""
+next_power_of_two(n::Integer) = n <= 1 ? 1 : 2^(ceil(Int, log2(n)))
+
+"""
+    fft!(x)
+
+In-place radix-2 Cooley-Tukey transform of a complex vector whose length is a
+power of two.
+
+The twiddle factors are evaluated directly as `cis(theta * k)` rather than
+accumulated by repeated multiplication. Accumulation is faster and drifts:
+the error grows with the transform length, which is exactly the regime a long
+chain puts it in.
+"""
+function fft!(x::Vector{ComplexF64})
+    n = length(x)
+    ispow2(n) || throw(ArgumentError("fft! needs a power-of-two length, got $n"))
+    n == 1 && return x
+
+    # bit-reversal permutation
+    j = 0
+    @inbounds for i in 0:(n - 2)
+        if i < j
+            x[i + 1], x[j + 1] = x[j + 1], x[i + 1]
+        end
+        m = n >> 1
+        while m >= 1 && j >= m
+            j -= m
+            m >>= 1
+        end
+        j += m
+    end
+
+    len = 2
+    while len <= n
+        half = len >> 1
+        theta = -2pi / len
+        @inbounds for start in 1:len:n
+            for k in 0:(half - 1)
+                w = cis(theta * k)
+                u = x[start + k]
+                v = x[start + k + half] * w
+                x[start + k] = u + v
+                x[start + k + half] = u - v
+            end
+        end
+        len <<= 1
+    end
+    return x
+end
+
+"""
+    ifft!(x)
+
+Inverse of [`fft!`](@ref), normalised by the transform length.
+"""
+function ifft!(x::Vector{ComplexF64})
+    n = length(x)
+    @inbounds for i in eachindex(x)
+        x[i] = conj(x[i])
+    end
+    fft!(x)
+    @inbounds for i in eachindex(x)
+        x[i] = conj(x[i]) / n
+    end
+    return x
+end

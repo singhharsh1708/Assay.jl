@@ -32,9 +32,7 @@ used so the check stays valid under autocorrelation.
 """
 function check_std(x::AbstractMatrix, exact::Real; nse::Real = 4)
     s = std(vec(x))
-    v = vec(x)
-    e = AS.ess_bulk(reshape((v .- mean(v)) .^ 2, size(x)))
-    se = s / sqrt(2 * max(e, 1.0))
+    se = AS.mcse_std(x)
     ok = abs(s - exact) <= nse * se
     ok || @info "sd mismatch" sampled=s exact=exact se=se z=(s - exact) / se
     return ok
