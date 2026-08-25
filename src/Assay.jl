@@ -60,12 +60,18 @@ export LogDensityModel
 # Layer 4: output container and diagnostics
 include("chains.jl")
 export Chains, ChainSummary, summarize, ndraws, nparams, nchains, sampler_stat, divergences,
+       has_unconstrained, subset,
        acceptance_rate
 
 include("diagnostics.jl")
 export ess, ess_bulk, ess_tail, ess_quantile, rhat, rhat_plain, mcse_mean, mcse_std,
        mcse_quantile, bfmi, autocov, autocov_fft,
        split_chains, rank_normalize
+
+# Working with a fitted posterior
+include("predictive.jl")
+export parameter_draws, n_parameter_draws, predictive, pointwise_log_likelihood,
+       predictive_check, PredictiveCheck
 
 # Importance sampling diagnostics and cross validation
 include("psis.jl")
@@ -74,7 +80,8 @@ export psis, PSISResult, reliable, gpd_fit, gpd_quantile, loo, LOOResult, proble
 
 # Layer 5: samplers
 include("samplers/interface.jl")
-export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, random_init
+export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, random_init,
+       check_model
 
 include("samplers/mh.jl")
 export RandomWalkMH, AcceptanceRule, MetropolisRule, BarkerRule, accept_prob
@@ -117,5 +124,8 @@ export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
 # A dynamical system on the simplex, as a worked non-conjugate example
 include("simplex_dynamics.jl")
 export simplex_step, simplex_trajectory, replicator_model, replicator_problem
+
+# Compile the common paths at build time rather than on the user's first call
+include("precompile.jl")
 
 end # module

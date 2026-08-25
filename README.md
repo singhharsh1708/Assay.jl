@@ -182,6 +182,13 @@ it with a per-observation `k`, WAIC, and model comparison whose difference
 standard errors come from paired pointwise differences. Checked against exact
 leave-one-out, which is computable in closed form for a conjugate model.
 
+**Working with a fit.** Posterior draws reconstruct exactly as the `NamedTuple`
+the model was written against, including simplex and correlation parameters
+whose reported columns are a summary rather than the point itself. On top of
+that: posterior predictive draws, predictive checks with a Bayesian p value,
+pointwise log likelihoods ready for cross validation, and chain subsetting by
+draw, chain or parameter.
+
 **Works on models this package did not define.** Every sampler runs on a plain
 log density, or on anything implementing the LogDensityProblems interface, and
 an Assay model satisfies that interface in return. A problem that arrives with
@@ -282,6 +289,7 @@ src/
   conjugate.jl          reference problems with closed-form posteriors
   calibration.jl        simulation based calibration, Geweke
   psis.jl               Pareto smoothed importance sampling, LOO, WAIC
+  predictive.jl         posterior predictive draws and checks
   external.jl           sampling models defined elsewhere
   spn.jl                sum-product networks
   simplex_dynamics.jl   replicator dynamics on the simplex

@@ -12,7 +12,27 @@ struct Chains
     names::Vector{Symbol}
     stats::Dict{Symbol,Array{Float64,2}}
     info::Dict{Symbol,Any}
+    unconstrained::Array{Float64,3}
 end
+
+"""
+    Chains(value, names, stats, info)
+
+Constructed without the unconstrained draws, which are then unavailable to
+[`parameter_draws`](@ref) and anything built on it.
+"""
+Chains(value::Array{Float64,3}, names::Vector{Symbol}, stats::Dict{Symbol,Array{Float64,2}},
+       info::Dict{Symbol,Any}) = Chains(value, names, stats, info, Array{Float64,3}(undef, 0, 0, 0))
+
+"""
+    has_unconstrained(chains)
+
+Whether the unconstrained draws were retained. They are what allows a
+constrained parameter to be reconstructed exactly: a stored simplex or
+correlation draw is a summary of the point, not the point itself, so predictive
+quantities cannot be rebuilt from the reported columns alone.
+"""
+has_unconstrained(c::Chains) = size(c.unconstrained, 1) > 0
 
 """
     ndraws(chains)
@@ -78,6 +98,35 @@ Mean acceptance probability across all draws.
 acceptance_rate(c::Chains) = haskey(c.stats, :accept_prob) ? Statistics.mean(c.stats[:accept_prob]) : NaN
 
 """
+    subset(chains; draws = :, chains = :, params = nothing)
+
+A view of the output restricted to some draws, some chains, or some parameters.
+
+Useful for the two things people actually do with a large fit: look at one
+parameter out of hundreds, and discard the early draws of a run that was
+started badly.
+
+    subset(chn; params = [:mu, :sigma])
+    subset(chn; draws = 501:2000)
+"""
+function subset(c::Chains; draws = :, chains = :, params = nothing)
+    keep = if params === nothing
+        1:nparams(c)
+    else
+        map(params) do p
+            i = findfirst(==(Symbol(p)), c.names)
+            i === nothing && throw(KeyError(Symbol(p)))
+            i
+        end
+    end
+    value = c.value[draws, keep, chains]
+    raw = has_unconstrained(c) ? c.unconstrained[draws, :, chains] :
+          Array{Float64,3}(undef, 0, 0, 0)
+    stats = Dict{Symbol,Array{Float64,2}}(k => v[draws, chains] for (k, v) in c.stats)
+    return Chains(value, c.names[keep], stats, copy(c.info), raw)
+end
+
+"""
     ChainSummary
 
 Per-parameter posterior summary and convergence diagnostics, as produced by
@@ -104,6 +153,8 @@ Posterior mean, standard deviation, Monte Carlo standard error, quantiles, bulk
 and tail effective sample size, and rank-normalised split R-hat, all computed by
 this package (see `src/diagnostics.jl`).
 """
+summarize(c::Chains, params) = summarize(subset(c; params = params))
+
 function summarize(c::Chains)
     p = nparams(c)
     m = Vector{Float64}(undef, p); s = similar(m); mc = similar(m)

@@ -334,14 +334,16 @@ function posterior_samples(r::VIResult, n::Int; rng::AbstractRNG = Random.defaul
     d = dimension(r.model)
     P = flat_dimension(r.model)
     value = Array{Float64,3}(undef, n, P, 1)
+    raw = Array{Float64,3}(undef, n, d, 1)
     for i in 1:n
         z = randn(rng, d)
         y = transform_sample(r.family, r.params, z, d)
         value[i, :, 1] = flatten_draw(r.model, y)
+        raw[i, :, 1] = y
     end
     info = Dict{Symbol,Any}(:sampler => r, :time_seconds => r.time_seconds, :n_warmup => 0,
                             :thin => 1, :warmup_kept => false, :chain_info => Any[])
-    return Chains(value, parameter_names(r.model), Dict{Symbol,Array{Float64,2}}(), info)
+    return Chains(value, parameter_names(r.model), Dict{Symbol,Array{Float64,2}}(), info, raw)
 end
 
 function Base.show(io::IO, r::VIResult)

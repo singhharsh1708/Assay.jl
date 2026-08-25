@@ -86,6 +86,15 @@ built on it match the direct sums to 1e-12.
 against their closed forms for independent normal draws, including that quantile
 error grows in the tails where a value-scale normal approximation would fail.
 
+**Working with a fit.** Parameters reconstruct from a chain exactly, including
+simplex draws whose components still sum to one. Posterior predictive checks
+reproduce a correctly specified model on the mean, standard deviation and
+maximum, and reject a normal model fitted to heavy-tailed data on the standard
+deviation and the maximum at p below 0.01 while the mean alone still looks fine.
+A log density that is not a function of its argument, the usual cause being data
+drawn inside the closure, is refused at the first call rather than producing an
+acceptance rate near zero.
+
 **Interfaces.** Every sampler runs on a plain log density function and on any
 object implementing the LogDensityProblems interface, including one that supplies
 its own gradient, which is used rather than recomputed. An Assay model in turn
