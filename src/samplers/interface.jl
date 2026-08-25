@@ -55,6 +55,41 @@ Hook called once between warmup and sampling; the default does nothing.
 finish_warmup!(rng, model, sampler::AbstractSampler, state) = state
 
 """
+    check_model(model, y)
+
+Evaluate the log density twice at the same point and complain if the two
+answers differ.
+
+A log density that is not a function of its argument alone cannot be sampled by
+anything, and the usual cause is data generated inside the closure rather than
+outside it:
+
+    Model(params, theta -> loglikelihood(Normal(theta.mu, 1), randn(30)))   # wrong
+    data = randn(30)
+    Model(params, theta -> loglikelihood(Normal(theta.mu, 1), data))        # right
+
+Without this check the symptom is an acceptance rate near zero and an effective
+sample size of two, which reads like a badly tuned sampler rather than a broken
+model. The check costs two evaluations per run.
+"""
+function check_model(model::AbstractModel, y::AbstractVector)
+    first_value = logdensity(model, y)
+    second_value = logdensity(model, y)
+    if !isequal(first_value, second_value)
+        throw(ArgumentError(
+            "the log density is not deterministic: evaluating it twice at the same point gave " *
+            "$first_value and $second_value. A sampler cannot target a moving distribution. " *
+            "The usual cause is randomness inside the model, such as data drawn with `rand` or " *
+            "`randn` inside the closure; generate it once outside and close over it."))
+    end
+    isfinite(first_value) || throw(ArgumentError(
+        "the log density is $first_value at the initial point. If the model is correct, supply " *
+        "`init` explicitly; if a parameter is constrained, check it is declared with the matching " *
+        "transform rather than being constrained inside the log density."))
+    return model
+end
+
+"""
     random_init(rng, model; scale = 2.0, tries = 100)
 
 Stan's initialisation rule: draw each unconstrained coordinate uniformly on
@@ -105,7 +140,9 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
     kept = length(1:thin:n_draws)
     total_stored = keep_warmup ? n_warmup + kept : kept
     P = flat_dimension(model)
+    D = dimension(model)
     value = Array{Float64,3}(undef, total_stored, P, n_chains)
+    raw = Array{Float64,3}(undef, total_stored, D, n_chains)
     statbuf = Vector{Dict{Symbol,Vector{Float64}}}(undef, n_chains)
     infos = Vector{Dict{Symbol,Any}}(undef, n_chains)
 
@@ -113,6 +150,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
     Threads.@threads for c in 1:n_chains
         crng = Random.Xoshiro(seeds[c])
         y0 = inits[c] === nothing ? random_init(crng, model) : inits[c]
+        c == 1 && check_model(model, y0)
         state = init_state(crng, model, sampler, y0; n_warmup = n_warmup)
         stats_c = Dict{Symbol,Vector{Float64}}()
         row = 0
@@ -121,6 +159,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
             if keep_warmup
                 row += 1
                 value[row, :, c] = flatten_draw(model, y)
+                raw[row, :, c] = y
                 _push_stats!(stats_c, st, total_stored, row)
             end
         end
@@ -130,6 +169,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
             if (i - 1) % thin == 0
                 row += 1
                 value[row, :, c] = flatten_draw(model, y)
+                raw[row, :, c] = y
                 _push_stats!(stats_c, st, total_stored, row)
             end
         end
@@ -151,7 +191,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
     info = Dict{Symbol,Any}(:sampler => sampler, :n_warmup => n_warmup, :thin => thin,
                             :time_seconds => elapsed, :chain_info => infos,
                             :warmup_kept => keep_warmup)
-    return Chains(value, parameter_names(model), stats, info)
+    return Chains(value, parameter_names(model), stats, info, raw)
 end
 
 function _push_stats!(d::Dict{Symbol,Vector{Float64}}, st::NamedTuple, n::Int, row::Int)
