@@ -489,6 +489,16 @@ corr_cholesky(K::Int) = CorrCholeskyT(K)
 # Naming, for chain columns
 # --------------------------------------------------------------------------
 
+"""
+    flat_names(t, name)
+
+Column names for a parameter stored in a chain, one per scalar the transform
+reports.
+
+Scalars keep the bare name; vectors are indexed, `w[1]`; a correlation factor is
+reported as the correlations below the diagonal, `R[2,1]`, since that is the
+quantity a reader wants rather than the entries of the factor.
+"""
 function flat_names(t::CorrCholeskyT, name::Symbol)
     return [Symbol(name, "[", i, ",", j, "]") for i in 2:t.K for j in 1:(i - 1)]
 end

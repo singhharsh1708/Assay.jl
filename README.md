@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://singhharsh1708.github.io/Assay.jl/)
 
 Bayesian inference implemented from first principles in Julia: MCMC (random walk
 Metropolis-Hastings, HMC, NUTS), sequential Monte Carlo, mean-field and
@@ -340,6 +341,8 @@ are included last: loading them first pushes the whole suite to 17 minutes.
 
 ## Documents
 
+* [the documentation site](https://singhharsh1708.github.io/Assay.jl/) - tutorials
+  and API reference, with every example executed at build time
 * [docs/results.md](docs/results.md) - every table and figure, generated
 * [docs/design-note.md](docs/design-note.md) - why the model interface and the
   transform layer are shaped this way, and what a full probabilistic programming
