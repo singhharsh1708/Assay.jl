@@ -26,12 +26,12 @@ log likelihood function of the constrained parameters. `prior_rand(rng)` should
 return a `NamedTuple` drawn from the prior; supply it whenever the prior can be
 sampled directly, which is the case for every model in `conjugate.jl`.
 """
-struct TemperedModel{M<:Model,F,R}
+struct TemperedModel{M<:AbstractModel,F,R}
     prior::M
     loglik::F
     prior_rand::R
 end
-TemperedModel(prior::Model, loglik; prior_rand = nothing) =
+TemperedModel(prior::AbstractModel, loglik; prior_rand = nothing) =
     TemperedModel(prior, loglik, prior_rand)
 
 """
@@ -39,9 +39,23 @@ TemperedModel(prior::Model, loglik; prior_rand = nothing) =
 
 The `Model` whose log density is `log prior + beta * log likelihood`.
 """
-function at(tm::TemperedModel, beta::Real)
+function at(tm::TemperedModel{<:Model}, beta::Real)
     return Model(NamedTuple{tm.prior.names}(tm.prior.transforms),
                  theta -> tm.prior.logjoint(theta) + beta * tm.loglik(theta))
+end
+
+"""
+    at(tm::TemperedModel{<:LogDensityModel}, beta)
+
+The wrapped-log-density case. There are no named transforms to rebuild, so the
+tempered target is assembled as another wrapped log density.
+"""
+function at(tm::TemperedModel{<:LogDensityModel}, beta::Real)
+    prior = tm.prior
+    theta_of = y -> (x = collect(float.(y)),)
+    return LogDensityModel(y -> logdensity(prior, y) + beta * tm.loglik(theta_of(y)),
+                           dimension(prior); names = parameter_names(prior),
+                           backend = prior.backend)
 end
 
 """

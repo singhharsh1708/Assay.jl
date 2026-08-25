@@ -93,7 +93,7 @@ integrator is volume preserving and reversible, which is what makes the
 Metropolis correction on `exp(-H)` exact; any change here has to preserve both
 properties or the sampler stops being valid.
 """
-function leapfrog(model::Model, metric::AbstractMetric, y::AbstractVector, p::AbstractVector,
+function leapfrog(model::AbstractModel, metric::AbstractMetric, y::AbstractVector, p::AbstractVector,
                   grad::AbstractVector, eps::Real, backend::ADBackend)
     phalf = p .+ (eps / 2) .* grad
     ynew = y .+ eps .* velocity(metric, phalf)
@@ -177,7 +177,7 @@ Heuristic of Hoffman and Gelman (2014): double or halve the step size until one
 leapfrog step crosses an acceptance probability of about 0.5. Only a starting
 point for dual averaging, but a bad one costs hundreds of wasted iterations.
 """
-function find_reasonable_step_size(rng::AbstractRNG, model::Model, metric::AbstractMetric,
+function find_reasonable_step_size(rng::AbstractRNG, model::AbstractModel, metric::AbstractMetric,
                                    y::AbstractVector, backend::ADBackend)
     eps = 1.0
     lp, grad = logdensity_and_gradient(model, y; backend = backend)
@@ -332,7 +332,7 @@ function make_metric(kind::Symbol, d::Int)
     throw(ArgumentError("metric must be :unit, :diag or :dense, got :$kind"))
 end
 
-function init_hamiltonian_state(rng::AbstractRNG, model::Model, y0::AbstractVector;
+function init_hamiltonian_state(rng::AbstractRNG, model::AbstractModel, y0::AbstractVector;
                                 metric_kind::Symbol, step_size, target_accept::Real,
                                 n_warmup::Int, backend::ADBackend,
                                 init_buffer::Int = 75, term_buffer::Int = 50,
@@ -358,7 +358,7 @@ One adaptation update: dual averaging on the acceptance statistic, plus the
 windowed metric update. Called by every gradient-based sampler at the end of its
 step.
 """
-function adapt!(rng::AbstractRNG, model::Model, st::HamiltonianState, alpha::Real, warmup::Bool,
+function adapt!(rng::AbstractRNG, model::AbstractModel, st::HamiltonianState, alpha::Real, warmup::Bool,
                 adapt_step_size::Bool, adapt_metric::Bool, backend::ADBackend)
     if !warmup
         return st
@@ -401,7 +401,7 @@ end
 Recompute the log density and gradient at the current position under a new
 model, keeping the step size and metric.
 """
-function refresh_hamiltonian!(model::Model, st::HamiltonianState, backend::ADBackend)
+function refresh_hamiltonian!(model::AbstractModel, st::HamiltonianState, backend::ADBackend)
     lp, grad = logdensity_and_gradient(model, st.y; backend = backend)
     st.lp = lp
     st.grad = grad

@@ -8,6 +8,7 @@ include("testutils.jl")
     include("test_densities.jl")
     include("test_transforms.jl")
     include("test_model.jl")
+    include("test_quality.jl")
     include("test_mh_conjugate.jl")
     include("test_diagnostics.jl")
     include("test_hmc_nuts.jl")
@@ -25,5 +26,6 @@ include("testutils.jl")
     # takes 17 minutes; with it after, 7. Without these two files at all it is
     # under 4. Heavy dependencies go last, and ReverseDiff after Turing.
     include("test_turing.jl")
+    include("test_external.jl")
     include("test_ad.jl")
 end

@@ -143,7 +143,7 @@ Base.@kwdef struct NUTS{U<:UTurnCriterion,B<:ADBackend} <: AbstractSampler
     backend::B = ForwardDiffAD()
 end
 
-function init_state(rng::AbstractRNG, model::Model, s::NUTS, y0::AbstractVector; n_warmup::Int = 0)
+function init_state(rng::AbstractRNG, model::AbstractModel, s::NUTS, y0::AbstractVector; n_warmup::Int = 0)
     return init_hamiltonian_state(rng, model, y0; metric_kind = s.metric, step_size = s.step_size,
                                   target_accept = s.target_accept, n_warmup = n_warmup,
                                   backend = s.backend, init_buffer = s.init_buffer,
@@ -155,7 +155,7 @@ end
 
 One leapfrog step, packaged as a depth-zero tree. Returns `(tree, diverged)`.
 """
-function leaf(model::Model, s::NUTS, st::HamiltonianState, y, p, grad, v::Int, H0::Float64)
+function leaf(model::AbstractModel, s::NUTS, st::HamiltonianState, y, p, grad, v::Int, H0::Float64)
     ynew, pnew, gradnew, lp = leapfrog(model, st.metric, y, p, grad, v * st.step_size, s.backend)
     finite = isfinite(lp) && all(isfinite, gradnew) && all(isfinite, pnew)
     H = finite ? hamiltonian(lp, st.metric, pnew) : Inf
@@ -203,7 +203,7 @@ Recursive doubling. Returns `(tree, valid, diverged)`, where `valid` is false if
 the subtree diverged or turned; an invalid subtree contributes no draw but its
 acceptance statistics are still counted.
 """
-function build_tree(rng::AbstractRNG, model::Model, s::NUTS, st::HamiltonianState,
+function build_tree(rng::AbstractRNG, model::AbstractModel, s::NUTS, st::HamiltonianState,
                     y, p, grad, v::Int, depth::Int, H0::Float64)
     if depth == 0
         tree, diverged = leaf(model, s, st, y, p, grad, v, H0)
@@ -223,7 +223,7 @@ function build_tree(rng::AbstractRNG, model::Model, s::NUTS, st::HamiltonianStat
     return merged, ok, diverged || diverged2
 end
 
-function step!(rng::AbstractRNG, model::Model, s::NUTS, st::HamiltonianState, warmup::Bool)
+function step!(rng::AbstractRNG, model::AbstractModel, s::NUTS, st::HamiltonianState, warmup::Bool)
     p0 = rand_momentum(rng, st.metric)
     H0 = hamiltonian(st.lp, st.metric, p0)
 
@@ -269,7 +269,7 @@ function step!(rng::AbstractRNG, model::Model, s::NUTS, st::HamiltonianState, wa
                         log_density = st.lp)
 end
 
-refresh!(model::Model, s::NUTS, st::HamiltonianState) =
+refresh!(model::AbstractModel, s::NUTS, st::HamiltonianState) =
     refresh_hamiltonian!(model, st, s.backend)
 
 finish_warmup!(rng, model, s::NUTS, st::HamiltonianState) =

@@ -1,23 +1,47 @@
+# The model interface.
+#
+# A `Model` is two things and nothing else:
+#
+#   1. an ordered set of named parameters, each with a transform that says how it
+#      is embedded in `R^n`;
+#   2. a function of the *constrained* parameters returning the log joint density
+#      `log p(θ) + log p(y | θ)`.
+#
+# The user writes the log joint in the space the mathematics is written in
+# (`σ > 0`, `p ∈ (0,1)`, `w` on the simplex). The library owns the mapping to
+# `R^n` and adds the log absolute Jacobian determinant. Samplers then only ever
+# see an unconstrained vector and a gradient, which is why adding a sampler never
+# requires touching this file.
+#
+#     model = Model((p = unit(),), θ -> logpdf(Beta(1, 1), θ.p) + loglikelihood(Bernoulli(θ.p), data))
+#     logdensity(model, [0.3])
+
 """
-The model interface.
+    AbstractModel
 
-A `Model` is two things and nothing else:
+The interface a sampler is written against. Anything that answers
 
-  1. an ordered set of named parameters, each with a transform that says how it
-     is embedded in `R^n`;
-  2. a function of the *constrained* parameters returning the log joint density
-     `log p(θ) + log p(y | θ)`.
+    dimension(m)                             -> Int
+    logdensity(m, y)                         -> Real
+    logdensity_and_gradient(m, y; backend)   -> (Real, AbstractVector)
+    parameter_names(m)                       -> Vector{Symbol}
+    flat_dimension(m)                        -> Int
+    flatten_draw(m, y)                       -> Vector{Float64}
 
-The user writes the log joint in the space the mathematics is written in
-(`σ > 0`, `p ∈ (0,1)`, `w` on the simplex). The library owns the mapping to
-`R^n` and adds the log absolute Jacobian determinant. Samplers then only ever
-see an unconstrained vector and a gradient, which is why adding a sampler never
-requires touching this file.
-
-    model = Model((p = unit(),), θ -> logpdf(Beta(1, 1), θ.p) + loglikelihood(Bernoulli(θ.p), data))
-    logdensity(model, [0.3])
+can be sampled by every algorithm in this package. [`Model`](@ref) is the
+implementation that owns constraints and Jacobians; [`LogDensityModel`](@ref)
+wraps anything satisfying the LogDensityProblems interface, so a model written
+for another package can be sampled here without being rewritten.
 """
-struct Model{N,T<:Tuple,F}
+abstract type AbstractModel end
+
+"""
+    Model(params::NamedTuple, logjoint)
+
+A model as an ordered set of named, constrained parameters plus a log joint
+density written in the constrained space.
+"""
+struct Model{N,T<:Tuple,F} <: AbstractModel
     names::NTuple{N,Symbol}
     transforms::T
     logjoint::F

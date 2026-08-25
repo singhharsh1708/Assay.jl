@@ -29,14 +29,14 @@ Base.@kwdef struct HMC{B<:ADBackend} <: AbstractSampler
     backend::B = ForwardDiffAD()
 end
 
-function init_state(rng::AbstractRNG, model::Model, s::HMC, y0::AbstractVector; n_warmup::Int = 0)
+function init_state(rng::AbstractRNG, model::AbstractModel, s::HMC, y0::AbstractVector; n_warmup::Int = 0)
     return init_hamiltonian_state(rng, model, y0; metric_kind = s.metric, step_size = s.step_size,
                                   target_accept = s.target_accept, n_warmup = n_warmup,
                                   backend = s.backend, init_buffer = s.init_buffer,
                                   term_buffer = s.term_buffer, base_window = s.base_window)
 end
 
-function step!(rng::AbstractRNG, model::Model, s::HMC, st::HamiltonianState, warmup::Bool)
+function step!(rng::AbstractRNG, model::AbstractModel, s::HMC, st::HamiltonianState, warmup::Bool)
     p0 = rand_momentum(rng, st.metric)
     H0 = hamiltonian(st.lp, st.metric, p0)
     L = s.jitter > 0 ?
@@ -71,7 +71,7 @@ function step!(rng::AbstractRNG, model::Model, s::HMC, st::HamiltonianState, war
                         n_leapfrog = L, energy = energy, log_density = st.lp)
 end
 
-refresh!(model::Model, s::HMC, st::HamiltonianState) =
+refresh!(model::AbstractModel, s::HMC, st::HamiltonianState) =
     refresh_hamiltonian!(model, st, s.backend)
 
 finish_warmup!(rng, model, s::HMC, st::HamiltonianState) =
