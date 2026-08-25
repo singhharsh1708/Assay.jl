@@ -9,10 +9,11 @@
 #   * report bulk and tail effective sample size separately, because a chain can
 #     have excellent central mixing and useless tails.
 #
-# Autocovariances are accumulated directly rather than through an FFT. That is
-# `O(n * lag)` instead of `O(n log n)`, but the Geyer truncation almost always
-# fires within a few hundred lags, and it keeps the package free of an FFT
-# dependency.
+# Autocovariances go through the hand-written FFT in `utils.jl` by way of the
+# Wiener-Khinchin theorem, which is `O(n log n)` and cheap enough to use every
+# lag rather than truncating at an arbitrary maximum. The direct `O(n * lag)`
+# version is kept as `autocov`, and the test suite holds the two against each
+# other.
 
 """
     autocov(x, maxlag)
@@ -31,6 +32,34 @@ function autocov(x::AbstractVector{<:Real}, maxlag::Int)
         out[t + 1] = s / n
     end
     return out
+end
+
+"""
+    autocov_fft(x, maxlag = length(x) - 1)
+
+Autocovariance at lags `0:maxlag` through the Fourier transform. The series is
+centred, zero padded to at least twice its length so the circular correlation
+the FFT computes equals the linear one, transformed, replaced by its power
+spectrum and transformed back.
+
+Same estimator as [`autocov`](@ref), including the `1/n` normalisation, at
+`O(n log n)` instead of `O(n * lag)`.
+"""
+function autocov_fft(x::AbstractVector{<:Real}, maxlag::Int = length(x) - 1)
+    n = length(x)
+    maxlag = min(maxlag, n - 1)
+    xbar = Statistics.mean(x)
+    m = next_power_of_two(2n)
+    buf = zeros(ComplexF64, m)
+    @inbounds for i in 1:n
+        buf[i] = x[i] - xbar
+    end
+    fft!(buf)
+    @inbounds for i in eachindex(buf)
+        buf[i] = abs2(buf[i])
+    end
+    ifft!(buf)
+    return [real(buf[t + 1]) / n for t in 0:maxlag]
 end
 
 """
@@ -168,8 +197,10 @@ function ess(x::AbstractMatrix{<:Real})
     W <= 0 && return float(n * m)                 # constant parameter
     B = m > 1 ? n * Statistics.var(means) : 0.0
     varplus = m > 1 ? ((n - 1) * W + B) / n : W
-    maxlag = min(n - 1, 1000)
-    acovs = [autocov(view(s, :, j), maxlag) for j in 1:m]
+    # Every lag, not a truncated window: the FFT makes the full set affordable,
+    # and truncating understates the correlation time of a slowly mixing chain.
+    maxlag = n - 1
+    acovs = [autocov_fft(view(s, :, j), maxlag) for j in 1:m]
     rho = Vector{Float64}(undef, maxlag + 1)
     @inbounds for t in 0:maxlag
         meanacov = Statistics.mean(a[t + 1] for a in acovs)
@@ -228,6 +259,69 @@ Monte Carlo standard error of the posterior mean, `sd / sqrt(ess_bulk)`.
 """
 mcse_mean(x::AbstractMatrix{<:Real}) = Statistics.std(vec(x)) / sqrt(max(ess_bulk(x), 1.0))
 mcse_mean(c::Chains, name::Symbol) = mcse_mean(c[name])
+
+"""
+    ess_quantile(x, prob)
+
+Effective sample size for a quantile, computed as the effective sample size of
+the indicator `x <= q`. A chain can be far more informative about the centre of
+a distribution than about its tails, and the mean's effective sample size says
+nothing about either quantile.
+"""
+function ess_quantile(x::AbstractMatrix{<:Real}, prob::Real)
+    0 < prob < 1 || throw(DomainError(prob, "prob must lie in (0, 1)"))
+    q = Statistics.quantile(vec(x), prob)
+    return ess(Float64.(x .<= q))
+end
+ess_quantile(c::Chains, name::Symbol, prob::Real) = ess_quantile(c[name], prob)
+
+"""
+    mcse_quantile(x, prob)
+
+Monte Carlo standard error of a quantile estimate, following Vehtari, Gelman,
+Simpson, Carpenter and Bürkner (2021).
+
+The estimate is not built from a normal approximation on the value scale, which
+fails wherever the density is small, exactly where quantile error is largest.
+Instead the uncertainty is expressed on the probability scale, where the order
+statistic has a Beta distribution with the effective sample size in place of the
+draw count, and then mapped back through the empirical quantile function. The
+result is the half width of a one standard deviation interval.
+"""
+function mcse_quantile(x::AbstractMatrix{<:Real}, prob::Real)
+    0 < prob < 1 || throw(DomainError(prob, "prob must lie in (0, 1)"))
+    v = sort(vec(x))
+    S = length(v)
+    e = ess_quantile(x, prob)
+    (isfinite(e) && e > 1) || return NaN
+    # plus and minus one standard deviation of a standard normal, as probabilities
+    beta = Beta(e * prob + 1, e * (1 - prob) + 1)
+    lo = quantile(beta, 0.1586553)
+    hi = quantile(beta, 0.8413447)
+    ilo = clamp(floor(Int, lo * S), 1, S)
+    ihi = clamp(ceil(Int, hi * S), 1, S)
+    return (v[ihi] - v[ilo]) / 2
+end
+mcse_quantile(c::Chains, name::Symbol, prob::Real) = mcse_quantile(c[name], prob)
+
+"""
+    mcse_std(x)
+
+Monte Carlo standard error of the posterior standard deviation, from the
+sampling variance of the squared deviations and the delta method:
+`sqrt(Var(s^2)) / (2 s)`, with the effective sample size of the squared
+deviations in place of the draw count.
+"""
+function mcse_std(x::AbstractMatrix{<:Real})
+    v = vec(x)
+    s = Statistics.std(v)
+    s > 0 || return 0.0
+    d2 = reshape((v .- Statistics.mean(v)) .^ 2, size(x))
+    e = ess(d2)
+    (isfinite(e) && e > 1) || return NaN
+    return sqrt(Statistics.var(vec(d2)) / e) / (2 * s)
+end
+mcse_std(c::Chains, name::Symbol) = mcse_std(c[name])
 
 """
     bfmi(chains)

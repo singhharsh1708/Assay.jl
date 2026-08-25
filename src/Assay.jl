@@ -30,7 +30,7 @@ import Statistics: mean, var, std, median, quantile
 
 # Layer 0: numerics
 include("utils.jl")
-export logistic, logit, log1pexp, logsumexp
+export logistic, logit, log1pexp, logsumexp, fft!, ifft!, next_power_of_two
 
 # Layer 1: densities
 include("densities.jl")
@@ -61,8 +61,14 @@ export Chains, ChainSummary, summarize, ndraws, nparams, nchains, sampler_stat, 
        acceptance_rate
 
 include("diagnostics.jl")
-export ess, ess_bulk, ess_tail, rhat, rhat_plain, mcse_mean, bfmi, autocov,
+export ess, ess_bulk, ess_tail, ess_quantile, rhat, rhat_plain, mcse_mean, mcse_std,
+       mcse_quantile, bfmi, autocov, autocov_fft,
        split_chains, rank_normalize
+
+# Importance sampling diagnostics and cross validation
+include("psis.jl")
+export psis, PSISResult, reliable, gpd_fit, gpd_quantile, loo, LOOResult, problematic,
+       waic, loo_compare
 
 # Layer 5: samplers
 include("samplers/interface.jl")
