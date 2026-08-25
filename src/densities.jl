@@ -343,11 +343,11 @@ var(d::Poisson) = d.lambda
 Multivariate normal with a dense covariance. The Cholesky factor is computed
 once at construction, so repeated `logpdf` calls cost one triangular solve.
 """
-struct MvNormal{T<:Real,M<:AbstractMatrix,C} <: MultivariateDensity
+struct MvNormal{T<:Real,M<:AbstractMatrix,C,L<:Real} <: MultivariateDensity
     mu::Vector{T}
     Sigma::M
     chol::C
-    logdetSigma::Float64
+    logdetSigma::L
 end
 
 function MvNormal(mu::AbstractVector, Sigma::AbstractMatrix)
@@ -363,6 +363,48 @@ function logpdf(d::MvNormal, x::AbstractVector)
 end
 Base.rand(rng::AbstractRNG, d::MvNormal) = d.mu .+ d.chol.L * randn(rng, length(d.mu))
 mean(d::MvNormal) = d.mu
+
+"""
+    MvNormalCholesky(mu, L)
+
+Multivariate normal given the lower Cholesky factor of its covariance, so that
+`Sigma = L L'`.
+
+This is the form to use when the covariance is being estimated. Building
+`Sigma` and factorising it again costs a factorisation per evaluation and can
+lose positive definiteness to rounding at exactly the moment the sampler is
+exploring a near-singular region; a factor is positive definite by
+construction. It also composes directly with [`corr_cholesky`](@ref):
+`Diagonal(sigma) * L` is the covariance factor for scales `sigma` and
+correlation factor `L`.
+"""
+struct MvNormalCholesky{T<:Real,F<:AbstractMatrix} <: MultivariateDensity
+    mu::Vector{T}
+    L::F
+end
+MvNormalCholesky(mu::AbstractVector, L::AbstractMatrix) = MvNormalCholesky(collect(mu), L)
+
+function logpdf(d::MvNormalCholesky, x::AbstractVector)
+    n = length(d.mu)
+    length(x) == n || return -Inf
+    z = LowerTriangular(d.L) \ (x .- d.mu)          # one triangular solve
+    logdet = zero(eltype(z))
+    @inbounds for i in 1:n
+        d.L[i, i] > 0 || return oftype(logdet, -Inf)
+        logdet += log(d.L[i, i])
+    end
+    return -0.5 * sum(abs2, z) - logdet - n / 2 * LOG2PI
+end
+
+Base.rand(rng::AbstractRNG, d::MvNormalCholesky) = d.mu .+ d.L * randn(rng, length(d.mu))
+mean(d::MvNormalCholesky) = d.mu
+
+"""
+    covariance(d::MvNormalCholesky)
+
+`L L'`, the covariance the factor stands for.
+"""
+covariance(d::MvNormalCholesky) = Matrix(d.L) * Matrix(d.L)'
 
 """
     Dirichlet(alpha)
@@ -447,6 +489,85 @@ function Base.rand(rng::AbstractRNG, d::Multinomial)
     return counts
 end
 mean(d::Multinomial) = d.n .* d.p
+
+"""
+    LKJCholesky(K, eta)
+
+The Lewandowski, Kurowicka and Joe prior over `K x K` correlation matrices,
+written over their Cholesky factors: `p(R) proportional to det(R)^(eta - 1)`.
+
+`eta = 1` is uniform over correlation matrices. Above 1 concentrates towards the
+identity, below 1 towards the boundary. Over factors the density picks up the
+Jacobian of `R = L L'`, which is why the diagonal entries appear with
+dimension-dependent powers:
+
+    log p(L) = sum_{i=2}^{K} (K - i + 2 eta - 2) log L[i,i] + log c(K, eta)
+
+The constant is included, so this can be used for evidence as well as for
+sampling. It is checked against Distributions.jl in the test suite.
+"""
+struct LKJCholesky{T<:Real} <: MultivariateDensity
+    K::Int
+    eta::T
+    function LKJCholesky(K::Int, eta::T) where {T<:Real}
+        K >= 2 || throw(ArgumentError("LKJCholesky requires K >= 2, got $K"))
+        eta > 0 || throw(DomainError(eta, "eta must be positive"))
+        new{T}(K, eta)
+    end
+end
+
+"""
+    lkj_log_constant(K, eta)
+
+Log normalising constant of [`LKJCholesky`](@ref).
+"""
+function lkj_log_constant(K::Int, eta::Real)
+    return (K - 1) * loggamma(eta + (K - 1) / 2) -
+           sum(0.5 * k * log(pi) + loggamma(eta + (K - 1 - k) / 2) for k in 1:(K - 1))
+end
+
+function logpdf(d::LKJCholesky, L::AbstractMatrix)
+    size(L) == (d.K, d.K) || return -Inf
+    core = zero(float(promote_type(eltype(L), typeof(d.eta))))
+    @inbounds for i in 2:d.K
+        L[i, i] > 0 || return oftype(core, -Inf)
+        core += (d.K - i + 2 * d.eta - 2) * log(L[i, i])
+    end
+    return core + lkj_log_constant(d.K, d.eta)
+end
+
+"""
+    rand(rng, d::LKJCholesky)
+
+Draw a Cholesky factor by the onion method: build the matrix one dimension at a
+time, drawing each new row's length from a Beta distribution and its direction
+uniformly on the sphere. Exact, and the route through which the prior is
+sampled for calibration checks.
+"""
+function Base.rand(rng::AbstractRNG, d::LKJCholesky)
+    K, eta = d.K, float(d.eta)
+    L = zeros(Float64, K, K)
+    L[1, 1] = 1.0
+    K == 1 && return LowerTriangular(L)
+    beta = eta + (K - 2) / 2
+    r2 = rand(rng, Beta(0.5, beta))
+    L[2, 1] = sqrt(r2) * (rand(rng) < 0.5 ? -1.0 : 1.0)
+    L[2, 2] = sqrt(1 - L[2, 1]^2)
+    for i in 3:K
+        beta -= 0.5
+        r2 = rand(rng, Beta((i - 1) / 2, beta))
+        # a uniform direction on the (i-1)-sphere
+        u = randn(rng, i - 1)
+        u ./= sqrt(sum(abs2, u))
+        for j in 1:(i - 1)
+            L[i, j] = sqrt(r2) * u[j]
+        end
+        L[i, i] = sqrt(max(1 - r2, 0.0))
+    end
+    return LowerTriangular(L)
+end
+
+mean(d::LKJCholesky) = Matrix{Float64}(I, d.K, d.K)
 
 # --------------------------------------------------------------------------
 # Cumulative distribution functions and quantiles

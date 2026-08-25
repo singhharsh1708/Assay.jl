@@ -144,7 +144,10 @@ Recorded because they are the argument for the suite existing.
 
 **Model interface and transforms.** Named parameters with per-parameter
 transforms: log for positive, logit for the unit interval and for bounded
-intervals, stick-breaking for the simplex, and an ordered transform. Each
+intervals, stick-breaking for the simplex, an ordered transform, and a
+correlation Cholesky transform through canonical partial correlations, which is
+what a hierarchical model with correlated effects needs in order to be written
+at all. Each
 computes its own log absolute Jacobian determinant, checked against automatic
 differentiation and against quadrature. The user writes the log joint in the
 constrained space; the library owns the map to `R^n`.
@@ -169,8 +172,20 @@ reparameterisation gradient, Adam, Polyak-Ruppert averaging of the iterates, and
 a convergence rule evaluated on common random numbers. Reports the ELBO trace.
 
 **Diagnostics.** Rank-normalised split R-hat, bulk and tail effective sample
-size with Geyer truncation, Monte Carlo standard errors, divergence counts and
-the Bayesian fraction of missing information.
+size with Geyer truncation over every lag (through a hand-written FFT), Monte
+Carlo standard errors for the mean, the standard deviation and any quantile,
+divergence counts and the Bayesian fraction of missing information.
+
+**Importance sampling and model comparison.** Pareto smoothed importance
+sampling with the shape diagnostic `k`, leave-one-out cross validation built on
+it with a per-observation `k`, WAIC, and model comparison whose difference
+standard errors come from paired pointwise differences. Checked against exact
+leave-one-out, which is computable in closed form for a conjugate model.
+
+**Works on models this package did not define.** Every sampler runs on a plain
+log density, or on anything implementing the LogDensityProblems interface, and
+an Assay model satisfies that interface in return. A problem that arrives with
+its own gradient keeps it.
 
 **Verification tools.** Simulation based calibration and the Geweke joint
 distribution test are part of the library, not just the test suite, so they can
@@ -266,6 +281,8 @@ src/
   diagnostics.jl        R-hat, ESS, MCSE, BFMI
   conjugate.jl          reference problems with closed-form posteriors
   calibration.jl        simulation based calibration, Geweke
+  psis.jl               Pareto smoothed importance sampling, LOO, WAIC
+  external.jl           sampling models defined elsewhere
   spn.jl                sum-product networks
   simplex_dynamics.jl   replicator dynamics on the simplex
   samplers/

@@ -34,6 +34,24 @@ const D = Distributions
         @test AS.logpdf(AS.Dirichlet(al), x) ≈ D.logpdf(D.Dirichlet(al), x) rtol = 1e-10
     end
 
+    @testset "the LKJ density against Distributions.jl" begin
+        for K in (2, 3, 4, 5), eta in (0.8, 1.0, 3.0)
+            mine = AS.LKJCholesky(K, eta)
+            theirs = D.LKJCholesky(K, eta)
+            L = rand(Random.Xoshiro(K * 7 + round(Int, eta * 10)), theirs).L
+            @test AS.logpdf(mine, L) ≈
+                  D.logpdf(theirs, LinearAlgebra.Cholesky(Matrix(L), :L, 0)) rtol = 1e-10
+        end
+        # the normalising constant is a constant, which is what makes the
+        # density usable for evidence and not only for sampling
+        d = AS.LKJCholesky(4, 2.5)
+        cs = [AS.logpdf(d, rand(Random.Xoshiro(s), D.LKJCholesky(4, 2.5)).L) -
+              sum((4 - i + 2 * 2.5 - 2) * log(rand(Random.Xoshiro(s), D.LKJCholesky(4, 2.5)).L[i, i])
+                  for i in 2:4) for s in 1:5]
+        @test all(c -> c ≈ cs[1], cs)
+        @test cs[1] ≈ AS.lkj_log_constant(4, 2.5)
+    end
+
     @testset "support" begin
         @test AS.logpdf(AS.Gamma(2.0, 1.0), -0.1) == -Inf
         @test AS.logpdf(AS.Beta(2.0, 2.0), 1.2) == -Inf
