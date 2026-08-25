@@ -292,6 +292,91 @@ function to_unconstrained(t::OrderedT, x::AbstractVector)
     return y
 end
 
+"""
+    CorrCholeskyT(K)
+
+Maps `R^(K(K-1)/2)` onto the Cholesky factors of `K x K` correlation matrices:
+lower triangular, positive diagonal, unit-length rows.
+
+The route is the canonical partial correlations. Each unconstrained coordinate
+becomes `z = tanh(y)` in `(-1, 1)`, and the rows are then built so that each one
+has unit length:
+
+    L[i,1] = z[i,1],   L[i,j] = z[i,j] * sqrt(1 - sum(L[i,1:j-1].^2)),
+    L[i,i] = sqrt(1 - sum(L[i,1:i-1].^2))
+
+Parameterising a correlation matrix directly does not work: the constraint is
+positive definiteness, which is not a box, so no elementwise map onto it exists.
+Partial correlations are the reparameterisation that turns it into one, and this
+is the transform that hierarchical models with correlated effects need in order
+to be written at all.
+"""
+struct CorrCholeskyT <: AbstractTransform
+    K::Int
+    function CorrCholeskyT(K::Int)
+        K >= 2 || throw(ArgumentError("CorrCholeskyT requires K >= 2, got $K"))
+        new(K)
+    end
+end
+
+udim(t::CorrCholeskyT) = (t.K * (t.K - 1)) ÷ 2
+cdim(t::CorrCholeskyT) = (t.K * (t.K - 1)) ÷ 2      # reported as correlations
+
+function to_constrained(t::CorrCholeskyT, y::AbstractVector)
+    K = t.K
+    T = float(eltype(y))
+    L = zeros(T, K, K)
+    L[1, 1] = one(T)
+    lj = zero(T)
+    idx = 0
+    @inbounds for i in 2:K
+        remaining = one(T)
+        for j in 1:(i - 1)
+            idx += 1
+            z = tanh(y[idx])
+            # d tanh / dy = 1 - z^2, in a form that does not underflow
+            lj += log(4) - 2 * abs(y[idx]) - 2 * log1pexp(-2 * abs(y[idx]))
+            s = sqrt(remaining)
+            L[i, j] = z * s
+            # every strictly lower entry is a free coordinate and carries the
+            # factor s; the entry determined by the unit-row constraint is the
+            # diagonal L[i,i], not the last off-diagonal one
+            lj += log(s)
+            remaining -= L[i, j]^2
+            remaining = max(remaining, zero(T))
+        end
+        L[i, i] = sqrt(remaining)
+    end
+    return LowerTriangular(L), lj
+end
+
+function to_unconstrained(t::CorrCholeskyT, L::AbstractMatrix)
+    K = t.K
+    size(L) == (K, K) || throw(DimensionMismatch("expected a $K x $K factor"))
+    T = float(eltype(L))
+    y = Vector{T}(undef, udim(t))
+    idx = 0
+    @inbounds for i in 2:K
+        remaining = one(T)
+        for j in 1:(i - 1)
+            idx += 1
+            s = sqrt(remaining)
+            z = L[i, j] / s
+            abs(z) < 1 || throw(DomainError(z, "not a valid correlation Cholesky factor"))
+            y[idx] = atanh(z)
+            remaining -= L[i, j]^2
+        end
+    end
+    return y
+end
+
+"""
+    correlation_matrix(L)
+
+`L * L'`, the correlation matrix a Cholesky factor stands for.
+"""
+correlation_matrix(L::AbstractMatrix) = Matrix(L) * Matrix(L)'
+
 # --------------------------------------------------------------------------
 # Scalar wrapper
 # --------------------------------------------------------------------------
@@ -390,9 +475,23 @@ Strictly increasing length-`n` vector parameter.
 """
 ordered(n::Int) = OrderedT(n)
 
+"""
+    corr_cholesky(K)
+
+Cholesky factor of a `K x K` correlation matrix, consuming `K(K-1)/2`
+unconstrained coordinates. The model sees a `LowerTriangular` factor `L`; draws
+are reported as the correlations themselves, `R[2,1]`, `R[3,1]` and so on, since
+that is what anyone reading a summary wants.
+"""
+corr_cholesky(K::Int) = CorrCholeskyT(K)
+
 # --------------------------------------------------------------------------
 # Naming, for chain columns
 # --------------------------------------------------------------------------
+
+function flat_names(t::CorrCholeskyT, name::Symbol)
+    return [Symbol(name, "[", i, ",", j, "]") for i in 2:t.K for j in 1:(i - 1)]
+end
 
 flat_names(::ScalarT, name::Symbol) = [name]
 flat_names(t::AbstractTransform, name::Symbol) =
@@ -406,3 +505,18 @@ scalars, matching the order produced by [`flat_names`](@ref).
 """
 flatten(x::Real) = [float(x)]
 flatten(x::AbstractVector) = collect(float.(x))
+
+"""
+    flatten(t, x)
+
+Flatten a constrained value for storage, given the transform that produced it.
+The default ignores the transform; a correlation factor reports the
+correlations below the diagonal rather than the factor's own entries, because
+`L[3,2]` means nothing to a reader and `R[3,2]` means everything.
+"""
+flatten(::AbstractTransform, x) = flatten(x)
+
+function flatten(t::CorrCholeskyT, L::AbstractMatrix)
+    R = correlation_matrix(L)
+    return [R[i, j] for i in 2:t.K for j in 1:(i - 1)]
+end

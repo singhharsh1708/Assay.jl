@@ -165,8 +165,8 @@ the order of [`parameter_names`](@ref).
 function flatten_draw(m::Model, y::AbstractVector)
     theta, _ = constrain(m, y)
     out = Float64[]
-    for name in m.names
-        append!(out, flatten(getproperty(theta, name)))
+    for (name, t) in zip(m.names, m.transforms)
+        append!(out, flatten(t, getproperty(theta, name)))
     end
     return out
 end

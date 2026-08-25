@@ -36,13 +36,15 @@ export logistic, logit, log1pexp, logsumexp, fft!, ifft!, next_power_of_two
 include("densities.jl")
 export Density, UnivariateDensity, MultivariateDensity
 export Normal, LogNormal, Cauchy, StudentT, Uniform, Exponential, Gamma, InverseGamma,
-       Beta, Bernoulli, Binomial, Poisson, Categorical, Multinomial, MvNormal, Dirichlet
+       Beta, Bernoulli, Binomial, Poisson, Categorical, Multinomial, MvNormal, MvNormalCholesky, covariance, Dirichlet,
+       LKJCholesky, lkj_log_constant
 export logpdf, loglikelihood, cdf
 
 # Layer 2: transforms
 include("transforms.jl")
 export AbstractTransform, udim, cdim, to_constrained, to_unconstrained
-export unconstrained, positive, unit, interval, lower, upper, simplex, ordered
+export unconstrained, positive, unit, interval, lower, upper, simplex, ordered,
+       corr_cholesky, correlation_matrix
 
 # Layer 3: gradients and the model interface
 include("ad.jl")

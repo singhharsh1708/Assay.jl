@@ -58,6 +58,39 @@ produces a chain that runs away by 23 orders of magnitude. A gradient scaled by
 1.1 and a U-turn criterion that never fires are shown *not* to bias the
 sampler - see "inferred" below - and to cost efficiency instead.
 
+**Importance sampling and cross validation.** The generalised Pareto fit
+recovers a known shape to 0.06 across `k` from -0.2 to 0.7 and a known scale to
+12%. `k` rises monotonically as an importance proposal is made worse, and the
+degenerate case of a proposal equal to the target reports the best possible `k`
+rather than a failure. Leave-one-out cross validation agrees with *exact*
+leave-one-out, computed in closed form for a conjugate model, to 0.03 nats
+against a standard error of 2.8; its per-observation `k` identifies an injected
+outlier as the most influential point, and the effective number of parameters
+inflates as it should. Model comparison prefers the correctly specified scale by
+more than four standard errors of the difference.
+
+**Correlation matrices.** The Cholesky transform produces factors with positive
+diagonal and unit rows, whose products are positive definite with unit diagonal,
+and whose analytic log Jacobian determinant matches automatic differentiation to
+1e-9 for `K` from 2 to 6. The LKJ density matches Distributions.jl to 1e-10
+across four dimensions and three concentrations. The onion sampler reproduces the
+closed-form marginal variance of an off-diagonal correlation, `1/(2 alpha + 1)`,
+to 5%. A three-dimensional covariance model recovers the sample correlations to
+0.03 with no divergences, and the whole model passes simulation based calibration.
+
+**The Fourier transform.** The hand-written radix-2 transform matches a direct
+discrete Fourier transform to 1e-10 and inverts to 1e-12, and the autocovariances
+built on it match the direct sums to 1e-12.
+
+**Monte Carlo standard errors.** Quantile and standard deviation standard errors
+against their closed forms for independent normal draws, including that quantile
+error grows in the tails where a value-scale normal approximation would fail.
+
+**Interfaces.** Every sampler runs on a plain log density function and on any
+object implementing the LogDensityProblems interface, including one that supplies
+its own gradient, which is used rather than recomputed. An Assay model in turn
+satisfies that interface, carrying its Jacobian correction with it.
+
 **Diagnostics.** Effective sample size against the AR(1) closed form at
 `r = 0, 0.5, 0.9, -0.5` within 15%, including the antithetic case where the
 effective sample size exceeds the number of draws. Bulk effective sample size
@@ -169,13 +202,12 @@ extension, with optional tape compilation; forward mode remains the default
 because the models here are small. Adding another backend is one method of
 `logdensity_and_gradient`, but no other backend has been measured.
 
-**Effective sample size is `O(n * lag)`.** Autocovariances are accumulated
-directly rather than through a fast Fourier transform. Geyer truncation usually
-fires within a few hundred lags so this is not visible at the sizes used here,
-but it would be at a million draws.
-
 **Coverage is not measured.** There is no coverage report in continuous
 integration.
+
+**No documentation site.** The docstrings are complete, and continuous
+integration fails if an exported name lacks one, but there is no rendered
+Documenter site and the package is not registered.
 
 ## Out of scope, deliberately
 
