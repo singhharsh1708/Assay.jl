@@ -196,7 +196,15 @@ its own gradient keeps it.
 
 **Verification tools.** Simulation based calibration and the Geweke joint
 distribution test are part of the library, not just the test suite, so they can
-be run against a user's own model.
+be run against a user's own model. Calibration reports two uniformity tests: the
+familiar binned chi-square, and the rank distribution function against a band
+that holds simultaneously across the whole curve, which uses the ordering of the
+ranks that binning discards.
+
+**Fits the tooling people already have.** Chains implement the Tables interface,
+so `DataFrame(chain)` and anything else that accepts a table just works, and
+convert to MCMCChains for StatsPlots and ArviZ, carrying divergences and step
+size across as `:internals`.
 
 **Sum-product networks.** Sums, products and univariate leaves, with
 completeness and decomposability checked at construction, exact marginalisation
@@ -290,6 +298,7 @@ src/
   calibration.jl        simulation based calibration, Geweke
   psis.jl               Pareto smoothed importance sampling, LOO, WAIC
   predictive.jl         posterior predictive draws and checks
+  ecdf.jl               simultaneous bands for rank uniformity
   external.jl           sampling models defined elsewhere
   spn.jl                sum-product networks
   simplex_dynamics.jl   replicator dynamics on the simplex

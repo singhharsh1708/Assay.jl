@@ -116,10 +116,15 @@ include("spn.jl")
 export SPNNode, LeafNode, SumNode, ProductNode, sum_node, product_node, scope,
        n_sum_nodes, naive_bayes_spn
 
+# Uniformity testing for calibration ranks
+include("ecdf.jl")
+export ecdf_simultaneous_band, ecdf_band_coverage, rank_ecdf, rank_uniformity_ecdf,
+       binomial_quantile
+
 # Calibration checks against the joint distribution
 include("calibration.jl")
 export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
-       rank_uniformity_test, geweke, GewekeResult
+       rank_uniformity_test, geweke, GewekeResult, calibrated
 
 # A dynamical system on the simplex, as a worked non-conjugate example
 include("simplex_dynamics.jl")
