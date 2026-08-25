@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/singhharsh1708/Assay.jl/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://singhharsh1708.github.io/Assay.jl/)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://singhharsh1708.github.io/Assay.jl/dev/)
 
 Bayesian inference implemented from first principles in Julia: MCMC (random walk
 Metropolis-Hastings, HMC, NUTS), sequential Monte Carlo, mean-field and
@@ -339,9 +339,16 @@ are included last: loading them first pushes the whole suite to 17 minutes.
 | `test_spn.jl`, `test_dynamics.jl` | exact marginalisation, structural validation, and calibration of two non-conjugate models |
 | `test_turing.jl` | agreement with Turing.jl and with MCMCChains, on models with no closed form |
 
+## Releases
+
+The package is not yet in the General registry. To register a version, tag the
+version in `Project.toml` and comment `@JuliaRegistrator register` on the
+release commit; `TagBot` then creates the GitHub release once the registry pull
+request merges, and Documenter starts publishing a `stable` branch of the site.
+
 ## Documents
 
-* [the documentation site](https://singhharsh1708.github.io/Assay.jl/) - tutorials
+* [the documentation site](https://singhharsh1708.github.io/Assay.jl/dev/) - tutorials
   and API reference, with every example executed at build time
 * [docs/results.md](docs/results.md) - every table and figure, generated
 * [docs/design-note.md](docs/design-note.md) - why the model interface and the
