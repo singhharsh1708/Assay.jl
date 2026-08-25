@@ -78,7 +78,7 @@ mutable struct MHState
     M2::Matrix{Float64}
 end
 
-function init_state(rng::AbstractRNG, model::Model, s::RandomWalkMH, y0::AbstractVector;
+function init_state(rng::AbstractRNG, model::AbstractModel, s::RandomWalkMH, y0::AbstractVector;
                     n_warmup::Int = 0)
     d = dimension(model)
     L = s.cov === nothing ? Matrix{Float64}(I, d, d) : Matrix(cholesky(Symmetric(s.cov)).L)
@@ -87,7 +87,7 @@ function init_state(rng::AbstractRNG, model::Model, s::RandomWalkMH, y0::Abstrac
     return MHState(collect(float.(y0)), lp, L, log(s.scale), 0, 0, zeros(d), zeros(d, d))
 end
 
-function step!(rng::AbstractRNG, model::Model, s::RandomWalkMH, st::MHState, warmup::Bool)
+function step!(rng::AbstractRNG, model::AbstractModel, s::RandomWalkMH, st::MHState, warmup::Bool)
     d = length(st.y)
     st.iter += 1
     z = randn(rng, d)
@@ -124,7 +124,7 @@ function _update_running_cov!(st::MHState)
     return st
 end
 
-function refresh!(model::Model, ::RandomWalkMH, st::MHState)
+function refresh!(model::AbstractModel, ::RandomWalkMH, st::MHState)
     st.lp = logdensity(model, st.y)
     return st
 end

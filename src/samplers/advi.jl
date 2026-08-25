@@ -130,7 +130,7 @@ whether the early stopping criterion fired. `posterior_samples` turns it into
 the same [`Chains`](@ref) object the MCMC samplers produce, so every diagnostic
 and every comparison table works unchanged.
 """
-struct VIResult{F<:VariationalFamily,M<:Model}
+struct VIResult{F<:VariationalFamily,M<:AbstractModel}
     family::F
     model::M
     params::Vector{Float64}
@@ -186,7 +186,7 @@ end
 
 Monte Carlo estimate of `E_q[log p] + H[q]` with fresh draws.
 """
-function elbo(model::Model, family::VariationalFamily, params::AbstractVector,
+function elbo(model::AbstractModel, family::VariationalFamily, params::AbstractVector,
               rng::AbstractRNG, n_samples::Int)
     d = dimension(model)
     acc = 0.0
@@ -207,7 +207,7 @@ their own Monte Carlo noise, which for a two-dimensional normal is around 0.05
 nats and swamps any sensible tolerance. Common random numbers make the check
 measure movement of the variational parameters instead.
 """
-function elbo_fixed(model::Model, family::VariationalFamily, params::AbstractVector,
+function elbo_fixed(model::AbstractModel, family::VariationalFamily, params::AbstractVector,
                     zs::Vector{Vector{Float64}})
     d = dimension(model)
     acc = 0.0
@@ -222,7 +222,7 @@ end
 
 Fit the variational approximation and return a [`VIResult`](@ref).
 """
-function sample(model::Model, spl::ADVI; rng::AbstractRNG = Random.default_rng(), init = nothing)
+function sample(model::AbstractModel, spl::ADVI; rng::AbstractRNG = Random.default_rng(), init = nothing)
     t0 = time()
     d = dimension(model)
     np = n_variational_params(spl.family, d)

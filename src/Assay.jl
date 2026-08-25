@@ -49,8 +49,11 @@ include("ad.jl")
 export ADBackend, ForwardDiffAD, ReverseDiffAD, FiniteDiffAD
 
 include("model.jl")
-export Model, logdensity, logdensity_and_gradient, constrain, unconstrain, dimension,
+export AbstractModel, Model, logdensity, logdensity_and_gradient, constrain, unconstrain, dimension,
        parameter_names, flat_dimension, flatten_draw
+
+include("external.jl")
+export LogDensityModel
 
 # Layer 4: output container and diagnostics
 include("chains.jl")

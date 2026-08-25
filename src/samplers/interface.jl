@@ -61,7 +61,7 @@ Stan's initialisation rule: draw each unconstrained coordinate uniformly on
 `[-scale, scale]` and reject points where the log density or its gradient is not
 finite.
 """
-function random_init(rng::AbstractRNG, model::Model; scale::Real = 2.0, tries::Int = 100)
+function random_init(rng::AbstractRNG, model::AbstractModel; scale::Real = 2.0, tries::Int = 100)
     for _ in 1:tries
         y = (2 .* rand(rng, dimension(model)) .- 1) .* scale
         lp = logdensity(model, y)
@@ -84,7 +84,7 @@ Keyword arguments:
   * `keep_warmup`  : also store the warmup draws
   * `thin`         : keep every `thin`-th draw after warmup
 """
-function sample(model::Model, sampler::AbstractSampler, n_draws::Int;
+function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
                 n_warmup::Int = max(n_draws ÷ 2, 100),
                 n_chains::Int = 1,
                 rng::AbstractRNG = Random.default_rng(),
