@@ -69,15 +69,28 @@ struct SBCResult
     n_bins::Int
     chisq::Vector{Float64}
     pvalue::Vector{Float64}
+    ecdf_inside::Vector{Bool}
+    max_deviation::Vector{Float64}
     time_seconds::Float64
 end
+
+"""
+    calibrated(r::SBCResult; alpha = 0.01)
+
+Whether every tracked parameter passed both uniformity tests: the binned
+chi-square at level `alpha`, and the distribution function against its
+simultaneous band.
+"""
+calibrated(r::SBCResult; alpha::Real = 0.01) = all(r.pvalue .> alpha) && all(r.ecdf_inside)
 
 function Base.show(io::IO, r::SBCResult)
     @printf(io, "SBCResult(%d replications, %d posterior draws per replication)\n",
             size(r.ranks, 1), r.n_draws)
-    @printf(io, "%-12s %12s %10s\n", "parameter", "chi-square", "p")
+    @printf(io, "%-12s %12s %10s %14s %12s\n", "parameter", "chi-square", "p",
+            "max deviation", "in the band")
     for i in eachindex(r.names)
-        @printf(io, "%-12s %12.3f %10.4f\n", String(r.names[i]), r.chisq[i], r.pvalue[i])
+        @printf(io, "%-12s %12.3f %10.4f %14.4f %12s\n", String(r.names[i]), r.chisq[i],
+                r.pvalue[i], r.max_deviation[i], r.ecdf_inside[i] ? "yes" : "NO")
     end
 end
 
@@ -130,10 +143,18 @@ function sbc(rng::AbstractRNG, problem::CalibrationProblem, sampler::AbstractSam
 
     chisq = Vector{Float64}(undef, length(names))
     pvalue = similar(chisq)
+    inside = Vector{Bool}(undef, length(names))
+    deviation = similar(chisq)
     for j in eachindex(names)
         chisq[j], pvalue[j] = rank_uniformity_test(view(ranks, :, j), n_draws, n_bins)
+        # the distribution function test as well: it uses the ordering of the
+        # ranks, which binning discards, and needs no bin count to be chosen
+        e = rank_uniformity_ecdf(view(ranks, :, j), n_draws)
+        inside[j] = e.inside
+        deviation[j] = e.max_deviation
     end
-    return SBCResult(ranks, collect(names), n_draws, n_bins, chisq, pvalue, time() - t0)
+    return SBCResult(ranks, collect(names), n_draws, n_bins, chisq, pvalue, inside,
+                     deviation, time() - t0)
 end
 
 """

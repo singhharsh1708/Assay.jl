@@ -17,6 +17,7 @@ include("testutils.jl")
     include("test_hmc_nuts.jl")
     include("test_smc.jl")
     include("test_advi.jl")
+    include("test_ecdf.jl")
     include("test_calibration.jl")
     include("test_negative_controls.jl")
     include("test_geometries.jl")
@@ -28,6 +29,7 @@ include("testutils.jl")
     # Turing, Turing's own load takes 131 seconds instead of 13 and the suite
     # takes 17 minutes; with it after, 7. Without these two files at all it is
     # under 4. Heavy dependencies go last, and ReverseDiff after Turing.
+    include("test_interop.jl")
     include("test_turing.jl")
     include("test_external.jl")
     include("test_ad.jl")
