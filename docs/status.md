@@ -95,6 +95,13 @@ A log density that is not a function of its argument, the usual cause being data
 drawn inside the closure, is refused at the first call rather than producing an
 acceptance rate near zero.
 
+**Calibration thinning.** The stride is chosen from the chain rather than by the
+user: a pilot is drawn, its effective sample size measured, and the stride set to
+draws per effective draw. Measured on a random walk, an unthinned run leaves the
+simultaneous band while the binned chi-square still reads p = 0.10; automatic
+thinning picks 10 for that sampler and 4 for NUTS on the same problem, and both
+pass. Rank correction, the alternative to thinning, is still not implemented.
+
 **Calibration by distribution function.** The simultaneous band is computed
 exactly, by dynamic programming over the grid rather than by simulation, and its
 coverage is then checked *against* simulation: 0.945 and 0.9475 observed against
@@ -210,12 +217,6 @@ caught the real version of this bug - the cross-subtree checks originally applie
 only inside the recursion and not at the outer doubling, understating the
 standard deviation by 2 to 4% at `z = -7`.
 
-**Simulation based calibration uses thinning rather than rank correction.**
-Talts et al. recommend thinning to near-independence, which is what is done, but
-the thinning factor is a user choice and a bad one produces a bathtub histogram
-for a correct sampler. An automatic choice from the effective sample size would
-be better.
-
 **The transforms are open maps only up to rounding.** At `|y| > 37` a unit
 interval transform returns exactly 0 or 1 in Float64, and a simplex component
 underflows to 0 in the same way; the stick-breaking remainder is clamped at zero
@@ -225,10 +226,6 @@ still evaluates to `-Inf`, so a sampler rejects such a point, but code that
 assumes strict interiority can be surprised. This is asserted in the tests as
 documented behaviour rather than fixed. It was found by a sum-product network
 rejecting a negative mixture weight during sampling.
-
-**No documentation site.** The docstrings are complete, and continuous
-integration fails if an exported name lacks one, but there is no rendered
-Documenter site and the package is not registered.
 
 ## Out of scope, deliberately
 
