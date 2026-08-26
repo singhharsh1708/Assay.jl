@@ -1,4 +1,6 @@
-using ReverseDiff: ReverseDiff        # loads the package extension
+using ReverseDiff: ReverseDiff        # each of these loads a package extension
+using Zygote: Zygote
+using Enzyme: Enzyme
 
 @testset "gradient backends" begin
     data = [0.4, 1.2, -0.3, 2.0]
@@ -31,6 +33,44 @@ using ReverseDiff: ReverseDiff        # loads the package extension
         @test backend.tape === tape                       # same tape, new point
         _, gf = AS.logdensity_and_gradient(model, [0.1, 0.4, -0.2, 0.6])
         @test g ≈ gf
+    end
+
+    @testset "Enzyme handles every transform, including the mutating ones" begin
+        for y in ([0.3, -0.7, 0.2, 1.1], [-1.5, 1.0, -0.4, 0.0])
+            vf, gf = AS.logdensity_and_gradient(model, y; backend = AS.ForwardDiffAD())
+            ve, ge = AS.logdensity_and_gradient(model, y; backend = AS.EnzymeAD())
+            @test ve ≈ vf
+            @test ge ≈ gf rtol = 1e-8
+        end
+    end
+
+    @testset "Zygote works where nothing is mutated, and says so where it is" begin
+        # The elementwise transforms are broadcast, so Zygote differentiates
+        # them. simplex, ordered and corr_cholesky build their output by
+        # writing into an array, which Zygote cannot do.
+        data = randn(Random.Xoshiro(4), 20)
+        plain = AS.Model((mu = AS.unconstrained(), sigma = AS.positive()),
+                         t -> AS.logpdf(AS.Normal(0.0, 5.0), t.mu) +
+                              AS.logpdf(AS.Gamma(2.0, 1.0), t.sigma) +
+                              AS.loglikelihood(AS.Normal(t.mu, t.sigma), data))
+        y = [0.2, -0.3]
+        vf, gf = AS.logdensity_and_gradient(plain, y)
+        vz, gz = AS.logdensity_and_gradient(plain, y; backend = AS.ZygoteAD())
+        @test vz ≈ vf
+        @test gz ≈ gf rtol = 1e-8
+
+        # and the model with a simplex fails with an explanation rather than a
+        # stack trace about setindex!
+        err = try
+            AS.logdensity_and_gradient(model, [0.3, -0.7, 0.2, 1.1]; backend = AS.ZygoteAD())
+            nothing
+        catch e
+            e
+        end
+        @test err !== nothing
+        msg = sprint(showerror, err)
+        @test occursin("mutates arrays", msg)
+        @test occursin("EnzymeAD", msg)
     end
 
     @testset "reverse mode samples the same posterior" begin

@@ -42,6 +42,29 @@ Base.@kwdef mutable struct ReverseDiffAD <: ADBackend
 end
 
 """
+    ZygoteAD()
+
+Reverse-mode automatic differentiation through Zygote, supplied by a package
+extension.
+
+Zygote cannot differentiate array mutation, and three transforms here build
+their output by writing into an array: `simplex`, `ordered` and
+`corr_cholesky`. Models using those need a different backend, and this one says
+so rather than failing with a stack trace about `setindex!`. Elementwise
+transforms are broadcast and work.
+"""
+struct ZygoteAD <: ADBackend end
+
+"""
+    EnzymeAD()
+
+Reverse-mode automatic differentiation through Enzyme, supplied by a package
+extension. Handles every transform in this package, mutation included, and
+matches forward mode to machine precision on the mixed model in the test suite.
+"""
+struct EnzymeAD <: ADBackend end
+
+"""
     FiniteDiffAD(; h = cbrt(eps()))
 
 Central differences. Far too slow and too inaccurate for sampling, but it is the

@@ -48,7 +48,7 @@ export unconstrained, positive, unit, interval, lower, upper, simplex, ordered,
 
 # Layer 3: gradients and the model interface
 include("ad.jl")
-export ADBackend, ForwardDiffAD, ReverseDiffAD, FiniteDiffAD
+export ADBackend, ForwardDiffAD, ReverseDiffAD, ZygoteAD, EnzymeAD, FiniteDiffAD
 
 include("model.jl")
 export AbstractModel, Model, logdensity, logdensity_and_gradient, constrain, unconstrain, dimension,

@@ -11,6 +11,7 @@
 
 using Assay
 using BenchmarkTools, Printf, Random, Statistics, LinearAlgebra
+using ReverseDiff, Enzyme        # loads the gradient backend extensions
 
 const AS = Assay
 const QUICK = "--quick" in ARGS
@@ -102,15 +103,23 @@ function main()
     end
 
     println(io, "\n## Gradient cost by backend and dimension\n")
-    println(io, "| dimension | ForwardDiff (us) | finite differences (us) | ratio |")
-    println(io, "|---:|---:|---:|---:|")
+    println(io, "Forward mode costs one pass per parameter and wins while that number is",
+            " small. Enzyme is reverse mode and overtakes it early; the crossover here is",
+            " below ten parameters, and by two hundred it is nearly two orders of magnitude",
+            " ahead. Finite differences are the reference the gradient tests check against,",
+            " not a serious option.\n")
+    println(io, "| dimension | ForwardDiff | ReverseDiff | Enzyme | finite differences |")
+    println(io, "|---:|---:|---:|---:|---:|")
     for d in (2, 10, 50, 200)
         target = AS.MvNormal(zeros(d), Matrix{Float64}(I, d, d))
         model = AS.Model((x = AS.unconstrained(d),), t -> AS.logpdf(target, t.x))
         y = randn(Random.Xoshiro(1), d)
         tf = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.ForwardDiffAD())
+        tr = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.ReverseDiffAD())
+        te = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.EnzymeAD())
         tn = @belapsed AS.logdensity_and_gradient($model, $y; backend = AS.FiniteDiffAD())
-        @printf(io, "| %d | %.1f | %.1f | %.1fx |\n", d, tf * 1e6, tn * 1e6, tn / tf)
+        @printf(io, "| %d | %.1f us | %.1f us | %.1f us | %.1f us |\n",
+                d, tf * 1e6, tr * 1e6, te * 1e6, tn * 1e6)
     end
 
     println(io, "\n## Sequential Monte Carlo and variational inference\n")

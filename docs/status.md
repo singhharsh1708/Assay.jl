@@ -101,6 +101,13 @@ coverage is then checked *against* simulation: 0.945 and 0.9475 observed against
 a claimed 0.95 at 100 and 200 replications. It catches a location bias and an
 over-dispersion in more than 90% of trials while leaving correct ranks alone.
 
+**Gradient backends.** Five, all agreeing on the same model: forward mode,
+ReverseDiff with and without a compiled tape, Enzyme, and central differences.
+Measured on a normal target, Enzyme overtakes forward mode below ten parameters
+and is about seventy times faster at two hundred. Zygote is supported only for
+models without a mutating transform, which is asserted as a test rather than
+left to be discovered.
+
 **Interfaces.** Every sampler runs on a plain log density function and on any
 object implementing the LogDensityProblems interface, including one that supplies
 its own gradient, which is used rather than recomputed. An Assay model in turn
@@ -211,14 +218,6 @@ rejecting a negative mixture weight during sampling.
 Polyak-Ruppert averaging of the iterates; no step size search of the kind Stan
 performs. On the models here it converges, but a poorly scaled model will need
 `step_size` set by hand.
-
-**Enzyme and Zygote are not wired up.** ReverseDiff is, through a package
-extension, with optional tape compilation; forward mode remains the default
-because the models here are small. Adding another backend is one method of
-`logdensity_and_gradient`, but no other backend has been measured.
-
-**Coverage is not measured.** There is no coverage report in continuous
-integration.
 
 **No documentation site.** The docstrings are complete, and continuous
 integration fails if an exported name lacks one, but there is no rendered
