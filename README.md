@@ -14,8 +14,9 @@ That is the organising idea here: a sampler that produces numbers is easy, and
 most of this repository is the apparatus for deciding whether the numbers are
 the right ones.
 
-No inference library is a dependency. ForwardDiff supplies gradients, with
-ReverseDiff available through a package extension; the densities, the samplers,
+No inference library is a dependency. ForwardDiff supplies gradients by default,
+with ReverseDiff, Enzyme and Zygote available through package extensions; the
+densities, the samplers,
 the bijectors, the effective sample size and R-hat estimators are all in
 [`src/`](src/). Distributions.jl, Turing.jl and MCMCChains appear in the test
 suite only, as oracles. Julia 1.10 or later; MIT licensed.
