@@ -71,7 +71,46 @@ struct SBCResult
     pvalue::Vector{Float64}
     ecdf_inside::Vector{Bool}
     max_deviation::Vector{Float64}
+    mean_thin::Int
     time_seconds::Float64
+end
+
+"""
+    _thinned_chain(rng, model, sampler, idx, n_draws, n_warmup, thin, max_thin)
+
+Draw `n_draws` near-independent posterior draws, returning them and the stride
+used.
+
+With a fixed `thin` this is one chain. With `:auto` a pilot chain is drawn
+first, its effective sample size measured over the tracked parameters, and the
+stride taken as draws per effective draw. If the pilot already contains enough
+thinned draws it is reused rather than resampled, so a sampler that needs no
+thinning pays almost nothing for asking.
+"""
+function _thinned_chain(rng::AbstractRNG, model::AbstractModel, sampler::AbstractSampler,
+                        idx::Vector{Int}, n_draws::Int, n_warmup::Int,
+                        thin::Union{Int,Symbol}, max_thin::Int)
+    if thin isa Int
+        chn = sample(model, sampler, n_draws * thin; n_warmup = n_warmup, n_chains = 1,
+                     rng = rng, thin = thin)
+        return chn, thin
+    end
+
+    pilot_n = 4 * n_draws
+    pilot = sample(model, sampler, pilot_n; n_warmup = n_warmup, n_chains = 1, rng = rng)
+    worst = minimum(ess_bulk(pilot.value[:, k, :]) for k in idx)
+    stride = clamp(ceil(Int, pilot_n / max(worst, 1.0)), 1, max_thin)
+
+    if stride * n_draws <= pilot_n
+        kept = pilot.value[1:stride:(stride * n_draws), :, :]
+        raw = has_unconstrained(pilot) ?
+              pilot.unconstrained[1:stride:(stride * n_draws), :, :] :
+              Array{Float64,3}(undef, 0, 0, 0)
+        return Chains(kept, pilot.names, Dict{Symbol,Array{Float64,2}}(), pilot.info, raw), stride
+    end
+    chn = sample(model, sampler, stride * n_draws; n_warmup = n_warmup, n_chains = 1,
+                 rng = rng, thin = stride)
+    return chn, stride
 end
 
 """
@@ -84,8 +123,8 @@ simultaneous band.
 calibrated(r::SBCResult; alpha::Real = 0.01) = all(r.pvalue .> alpha) && all(r.ecdf_inside)
 
 function Base.show(io::IO, r::SBCResult)
-    @printf(io, "SBCResult(%d replications, %d posterior draws per replication)\n",
-            size(r.ranks, 1), r.n_draws)
+    @printf(io, "SBCResult(%d replications, %d posterior draws per replication, thinned by %d)\n",
+            size(r.ranks, 1), r.n_draws, r.mean_thin)
     @printf(io, "%-12s %12s %10s %14s %12s\n", "parameter", "chi-square", "p",
             "max deviation", "in the band")
     for i in eachindex(r.names)
@@ -95,8 +134,8 @@ function Base.show(io::IO, r::SBCResult)
 end
 
 """
-    sbc(rng, problem, sampler; n_sims = 200, n_draws = 64, thin = 8,
-        n_warmup = 500, n_bins = 8)
+    sbc(rng, problem, sampler; n_sims = 200, n_draws = 64, thin = :auto,
+        n_warmup = 500, n_bins = 8, max_thin = 50)
 
 Simulation based calibration (Talts, Betancourt, Simpson, Vehtari and Gelman,
 2018).
@@ -109,13 +148,24 @@ acceptance step shows up as a departure from uniformity, usually a characteristi
 shape: a U for over-dispersion, an inverted U for under-dispersion, a slope for a
 location bias.
 
-The posterior draws are thinned by `thin`, because the rank statistic assumes
-independent draws and autocorrelated ones make the histogram bathtub-shaped even
-for a correct sampler.
+The posterior draws are thinned, because the rank statistic assumes independent
+draws and autocorrelated ones fail the uniformity test even for a correct
+sampler. Measured on a random walk, at `thin = 1` the rank distribution function
+leaves its simultaneous band; by `thin = 5` it does not.
+
+`thin = :auto`, the default, chooses the factor from the chain rather than
+asking the user to guess it: a pilot chain is drawn, its effective sample size
+measured, and the stride set to the ratio of draws to effective draws, capped at
+`max_thin`. A gradient-based sampler on an easy posterior needs no thinning and
+pays for none; a random walk on the same problem gets what it needs. Passing an
+integer keeps that fixed instead.
 """
 function sbc(rng::AbstractRNG, problem::CalibrationProblem, sampler::AbstractSampler;
-             n_sims::Int = 200, n_draws::Int = 64, thin::Int = 8, n_warmup::Int = 500,
-             n_bins::Int = 8)
+             n_sims::Int = 200, n_draws::Int = 64, thin::Union{Int,Symbol} = :auto,
+             n_warmup::Int = 500, n_bins::Int = 8, max_thin::Int = 50)
+    thin isa Int || thin === :auto ||
+        throw(ArgumentError("thin must be a positive integer or :auto, got $thin"))
+    thin isa Int && thin < 1 && throw(ArgumentError("thin must be at least 1, got $thin"))
     t0 = time()
     theta0 = problem.prior_rand(rng)
     data0 = problem.simulate(theta0, rng)
@@ -126,6 +176,7 @@ function sbc(rng::AbstractRNG, problem::CalibrationProblem, sampler::AbstractSam
     any(isnothing, idx) && throw(ArgumentError("unknown parameter name in the problem"))
 
     ranks = Matrix{Int}(undef, n_sims, length(names))
+    strides = Vector{Int}(undef, n_sims)
     seeds = rand(rng, UInt64, n_sims)
     Threads.@threads for s in 1:n_sims
         srng = Random.Xoshiro(seeds[s])
@@ -133,8 +184,8 @@ function sbc(rng::AbstractRNG, problem::CalibrationProblem, sampler::AbstractSam
         data = problem.simulate(theta, srng)
         model = problem.build(data)
         truth = flatten_draw(model, unconstrain(model, theta))
-        chn = sample(model, sampler, n_draws * thin; n_warmup = n_warmup, n_chains = 1,
-                     rng = srng, thin = thin)
+        chn, stride = _thinned_chain(srng, model, sampler, idx, n_draws, n_warmup, thin, max_thin)
+        strides[s] = stride
         for (j, k) in enumerate(idx)
             draws = view(chn.value, :, k, 1)
             ranks[s, j] = count(<(truth[k]), draws)
@@ -154,7 +205,7 @@ function sbc(rng::AbstractRNG, problem::CalibrationProblem, sampler::AbstractSam
         deviation[j] = e.max_deviation
     end
     return SBCResult(ranks, collect(names), n_draws, n_bins, chisq, pvalue, inside,
-                     deviation, time() - t0)
+                     deviation, round(Int, Statistics.mean(strides)), time() - t0)
 end
 
 """

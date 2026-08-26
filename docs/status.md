@@ -101,6 +101,17 @@ coverage is then checked *against* simulation: 0.945 and 0.9475 observed against
 a claimed 0.95 at 100 and 200 replications. It catches a location bias and an
 over-dispersion in more than 90% of trials while leaving correct ranks alone.
 
+**The dual-averaged acceptance overshoot is a deliberate trade, not a defect.**
+The achieved acceptance rate sits above the target, by about 0.06 at a target of
+0.8 and 0.11 at 0.65, because the sampling phase uses the step size averaged in
+log space and the acceptance statistic is convex and decreasing in it. Using the
+last raw iterate instead is closer on average and far less stable: over five
+seeds on a ten dimensional normal, the spread of the achieved rate across runs
+is 0.01 for the averaged step size against 0.12 to 0.44 for the raw one, and at
+a target of 0.65 that means individual runs landing near zero or one. An earlier
+version of this document attributed the gap to metric adaptation; it is present
+with the metric fixed too, and the cause is the averaging.
+
 **The variational step size.** Adam with a decaying step size and
 Polyak-Ruppert averaging. Measured on four targets that each prefer a different
 constant step size, decay brings all of them inside 4% of the true scale at the
@@ -198,13 +209,6 @@ it. The regression test that does exist is the `rho = 0.95` Gaussian, which
 caught the real version of this bug - the cross-subtree checks originally applied
 only inside the recursion and not at the outer doubling, understating the
 standard deviation by 2 to 4% at `z = -7`.
-
-**The dual-averaged acceptance rate overshoots its target** by 0.05 to 0.12 when
-the metric is adapting underneath it, because the sampling phase uses the
-dual-averaged log step size and the acceptance statistic is convex and
-decreasing in the step size. With the metric fixed, the target is hit to within
-0.01. The terminal warmup buffer is 100 iterations rather than Stan's 50, which
-halves the gap; it does not close it.
 
 **Simulation based calibration uses thinning rather than rank correction.**
 Talts et al. recommend thinning to near-independence, which is what is done, but

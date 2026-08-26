@@ -26,6 +26,38 @@
         @test all(res.pvalue .> 0.01)
     end
 
+    @testset "thinning chosen from the chain" begin
+        # A rank statistic assumes independent draws. Too little thinning fails
+        # the uniformity test even for a correct sampler, and how much is enough
+        # depends on the sampler, so it is measured rather than guessed.
+        prob = AS.conjugate_problem(AS.beta_bernoulli, 20; a = 1.0, b = 1.0)
+
+        # unthinned, a random walk does not look calibrated even though it is
+        unthinned = AS.sbc(Random.Xoshiro(5), prob, AS.RandomWalkMH(); n_sims = 150,
+                           n_draws = 64, thin = 1, n_warmup = 1000)
+        @test !unthinned.ecdf_inside[1]
+        @test unthinned.mean_thin == 1
+
+        # asking for automatic thinning fixes it, and reports what it chose
+        auto = AS.sbc(Random.Xoshiro(5), prob, AS.RandomWalkMH(); n_sims = 150,
+                      n_draws = 64, n_warmup = 1000)
+        @test auto.mean_thin > 1
+        @test auto.ecdf_inside[1]
+        @test auto.pvalue[1] > 0.01
+        @test AS.calibrated(auto)
+
+        # a gradient-based sampler on the same problem needs less of it
+        nuts = AS.sbc(Random.Xoshiro(5), prob, AS.NUTS(); n_sims = 150, n_draws = 64,
+                      n_warmup = 1000)
+        @test nuts.mean_thin <= auto.mean_thin
+        @test AS.calibrated(nuts)
+
+        @test_throws ArgumentError AS.sbc(Random.Xoshiro(1), prob, AS.NUTS(); n_sims = 5,
+                                          thin = 0)
+        @test_throws ArgumentError AS.sbc(Random.Xoshiro(1), prob, AS.NUTS(); n_sims = 5,
+                                          thin = :sometimes)
+    end
+
     @testset "Geweke: the two joint simulators agree" begin
         for (builder, kwargs, n) in ((gamma_poisson, (a = 2.0, b = 1.0), 20),
                                      (beta_bernoulli, (a = 2.0, b = 3.0), 25),
