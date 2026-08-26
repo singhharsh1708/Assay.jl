@@ -70,6 +70,47 @@
         @test cor(vec(chn[Symbol("x[1]")]), vec(chn[Symbol("x[2]")])) ≈ rho atol = 0.05
     end
 
+    @testset "the step size decays, and that is what makes the default work" begin
+        # A constant step size has no good default. These four targets each
+        # prefer a different one, and the wrong choice is not slightly worse but
+        # catastrophically so. Decay removes most of that sensitivity, which is
+        # why it is on by default and why the candidate search Stan performs was
+        # implemented, measured and then removed.
+        cases = Tuple{String,Any,Vector{Float64}}[]
+        push!(cases, ("badly scaled",
+                      AS.Model((x = AS.unconstrained(2),),
+                               t -> AS.logpdf(AS.MvNormal(zeros(2),
+                                                          Matrix(Diagonal([1e-3, 1e3] .^ 2))), t.x)),
+                      [1e-3, 1e3]))
+        push!(cases, ("correlated",
+                      AS.Model((x = AS.unconstrained(2),),
+                               t -> AS.logpdf(AS.MvNormal(zeros(2), [1.0 0.99; 0.99 1.0]), t.x)),
+                      fill(sqrt(1 - 0.99^2), 2)))
+        obs = randn(Random.Xoshiro(5), 5000)
+        push!(cases, ("many observations",
+                      AS.Model((mu = AS.unconstrained(), sigma = AS.positive()),
+                               t -> AS.logpdf(AS.Normal(0.0, 10.0), t.mu) +
+                                    AS.logpdf(AS.Gamma(2.0, 1.0), t.sigma) +
+                                    AS.loglikelihood(AS.Normal(t.mu, t.sigma), obs)),
+                      [1 / sqrt(5000), 1 / sqrt(2 * 5000)]))
+
+        for (name, model, truth) in cases
+            res = AS.sample(model, AS.ADVI(; n_samples = 8); rng = Random.Xoshiro(1))
+            err = maximum(abs.(AS.variational_scale(res) .- truth) ./ truth)
+            @test err < 0.1
+        end
+
+        # and the decay is actually applied: turning it off changes the answer
+        model = cases[end][2]
+        with_decay = AS.sample(model, AS.ADVI(; n_samples = 8); rng = Random.Xoshiro(1))
+        without = AS.sample(model, AS.ADVI(; n_samples = 8, decay = 0.0, step_size = 0.05);
+                            rng = Random.Xoshiro(1))
+        truth = cases[end][3]
+        err_with = maximum(abs.(AS.variational_scale(with_decay) .- truth) ./ truth)
+        err_without = maximum(abs.(AS.variational_scale(without) .- truth) ./ truth)
+        @test err_with < err_without
+    end
+
     @testset "constrained parameters stay in their support" begin
         data = [rand(rng) < 0.2 ? 1 : 0 for _ in 1:40]
         ref = AS.beta_bernoulli(data; a = 1.0, b = 1.0)

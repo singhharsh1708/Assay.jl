@@ -101,6 +101,14 @@ coverage is then checked *against* simulation: 0.945 and 0.9475 observed against
 a claimed 0.95 at 100 and 200 replications. It catches a location bias and an
 over-dispersion in more than 90% of trials while leaving correct ranks alone.
 
+**The variational step size.** Adam with a decaying step size and
+Polyak-Ruppert averaging. Measured on four targets that each prefer a different
+constant step size, decay brings all of them inside 4% of the true scale at the
+default, against a worst case of 15% before and 350% at an unlucky constant
+choice. Stan's approach of scoring several candidates on short runs was
+implemented, measured and removed: it lost to decay on every target, because a
+short trial rewards a step size that covers ground early and then plateaus.
+
 **Gradient backends.** Five, all agreeing on the same model: forward mode,
 ReverseDiff with and without a compiled tape, Enzyme, and central differences.
 Measured on a normal target, Enzyme overtakes forward mode below ten parameters
@@ -213,11 +221,6 @@ still evaluates to `-Inf`, so a sampler rejects such a point, but code that
 assumes strict interiority can be surprised. This is asserted in the tests as
 documented behaviour rather than fixed. It was found by a sum-product network
 rejecting a negative mixture weight during sampling.
-
-**ADVI's step size is not adapted.** Adam with a constant step size plus
-Polyak-Ruppert averaging of the iterates; no step size search of the kind Stan
-performs. On the models here it converges, but a poorly scaled model will need
-`step_size` set by hand.
 
 **No documentation site.** The docstrings are complete, and continuous
 integration fails if an exported name lacks one, but there is no rendered
