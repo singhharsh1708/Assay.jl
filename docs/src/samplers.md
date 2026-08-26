@@ -94,3 +94,9 @@ deviation is `sqrt(1 - rho^2)`. Full rank can, at quadratic cost in parameters.
 
 The ELBO is a lower bound on the log evidence, so `elbo_with_error(fit)` against
 a known evidence is a real check rather than a progress bar.
+
+The step size decays as `step_size / (1 + t / decay)`, and the decay matters
+more than the starting value. With a constant step size there is no good
+default: four targets measured here each prefer a different one, and an unlucky
+choice was wrong by 350 percent. With decay all four land within 4 percent at
+the default.
