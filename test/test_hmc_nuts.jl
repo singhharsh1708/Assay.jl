@@ -42,6 +42,38 @@
         @test abs(AS.acceptance_rate(chn) - 0.7) < 0.05
     end
 
+    @testset "the averaged step size is the stable one" begin
+        # The sampling phase uses the step size averaged in log space, which
+        # overshoots the target acceptance rate slightly. The alternative, the
+        # last raw iterate, lands closer on average and varies enormously
+        # between runs. This asserts the trade rather than the overshoot.
+        d = 6
+        target = AS.MvNormal(zeros(d), Matrix{Float64}(I, d, d))
+        model = AS.Model((x = AS.unconstrained(d),), t -> AS.logpdf(target, t.x))
+
+        function achieved(use_raw, seed)
+            spl = AS.NUTS(; target_accept = 0.8)
+            y0 = AS.random_init(Random.Xoshiro(seed), model)
+            st = AS.init_state(Random.Xoshiro(seed), model, spl, y0; n_warmup = 600)
+            rng = Random.Xoshiro(seed + 1000)
+            for _ in 1:600
+                AS.step!(rng, model, spl, st, true)
+            end
+            st.step_size = use_raw ? exp(st.da.logeps) : AS.da_final(st.da)
+            acc = Float64[]
+            for _ in 1:800
+                _, stats = AS.step!(rng, model, spl, st, false)
+                push!(acc, stats.accept_prob)
+            end
+            return Statistics.mean(acc)
+        end
+
+        averaged = [achieved(false, s) for s in 1:5]
+        raw = [achieved(true, s) for s in 1:5]
+        @test Statistics.std(averaged) < Statistics.std(raw) / 3
+        @test all(a -> 0.75 < a < 0.95, averaged)      # overshoots, but predictably
+    end
+
     @testset "metrics on an ill-conditioned Gaussian" begin
         d = 8
         sds = 10 .^ range(-1, 1, length = d)
