@@ -24,7 +24,7 @@ using Printf
 using Base.CoreLogging: @logmsg
 using ForwardDiff
 using DiffResults
-using SpecialFunctions: loggamma, logbeta, erf, erfc, beta_inc, gamma_inc
+using SpecialFunctions: loggamma, logbeta, erf, erfc, beta_inc, gamma_inc, besselk
 
 import Statistics
 import Statistics: mean, var, std, median, quantile
@@ -76,6 +76,11 @@ include("diagnostics.jl")
 export ess, ess_bulk, ess_tail, ess_quantile, rhat, rhat_plain, mcse_mean, mcse_std,
        mcse_quantile, bfmi, autocov, autocov_fft,
        split_chains, rank_normalize
+
+# The convergence diagnostics reported before rank-normalised split R-hat
+include("classical.jl")
+export gelman_rubin, geweke_z, heidelberger_welch, HeidelbergerWelch, raftery_lewis,
+       RafteryLewis, spectrum0_ar
 
 # Working with a fitted posterior
 include("predictive.jl")
