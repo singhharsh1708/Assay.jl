@@ -153,6 +153,10 @@ include("calibration.jl")
 export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
        rank_uniformity_test, geweke, GewekeResult, calibrated
 
+# Cross validation that refits
+include("kfold.jl")
+export kfold, KFoldResult, stratified_folds, refit_problematic
+
 # Did the variational approximation work
 include("vi_diagnostics.jl")
 export psis_check, vsbc, VSBCResult, unbiased, log_variational_density
