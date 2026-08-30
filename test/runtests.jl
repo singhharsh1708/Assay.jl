@@ -6,6 +6,7 @@ include("testutils.jl")
 @testset "Assay" begin
     include("test_utils.jl")
     include("test_densities.jl")
+    include("test_wrappers.jl")
     include("test_transforms.jl")
     include("test_correlation.jl")
     include("test_model.jl")

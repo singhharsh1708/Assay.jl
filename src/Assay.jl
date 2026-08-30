@@ -45,6 +45,10 @@ export Normal, LogNormal, Cauchy, StudentT, Uniform, Exponential, Gamma, Inverse
        LKJCholesky, lkj_log_constant
 export logpdf, loglikelihood, cdf
 
+include("wrappers.jl")
+export MixtureDensity, n_components, Truncated, truncated, Censored, censored,
+       ccdf, logcdf, logccdf
+
 # Layer 2: transforms
 include("transforms.jl")
 export AbstractTransform, udim, cdim, to_constrained, to_unconstrained, flat_names, flatten
