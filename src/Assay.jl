@@ -150,6 +150,11 @@ include("calibration.jl")
 export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
        rank_uniformity_test, geweke, GewekeResult, calibrated
 
+# Checks on the prior rather than on the posterior
+include("prior.jl")
+export prior_predictive, prior_predictive_check, power_scale, prior_sensitivity,
+       SensitivityResult, sensitive
+
 # A dynamical system on the simplex, as a worked non-conjugate example
 include("simplex_dynamics.jl")
 export simplex_step, simplex_trajectory, replicator_model, replicator_problem
