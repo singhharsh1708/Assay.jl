@@ -21,6 +21,7 @@ module Assay
 using LinearAlgebra
 using Random
 using Printf
+using Base.CoreLogging: @logmsg
 using ForwardDiff
 using DiffResults
 using SpecialFunctions: loggamma, logbeta, erf, erfc, beta_inc, gamma_inc
@@ -83,6 +84,9 @@ export psis, PSISResult, reliable, gpd_fit, gpd_quantile, loo, LOOResult, proble
        waic, loo_compare
 
 # Layer 5: samplers
+include("progress.jl")
+export ProgressLevel, ProgressReporter, tick!, report!, finish!, format_duration
+
 include("samplers/interface.jl")
 export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, random_init,
        check_model, ChainFailure, failures, failed
