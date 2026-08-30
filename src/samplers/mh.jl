@@ -83,7 +83,7 @@ function init_state(rng::AbstractRNG, model::AbstractModel, s::RandomWalkMH, y0:
     d = dimension(model)
     L = s.cov === nothing ? Matrix{Float64}(I, d, d) : Matrix(cholesky(Symmetric(s.cov)).L)
     lp = logdensity(model, y0)
-    isfinite(lp) || error("initial point has non-finite log density")
+    isfinite(lp) || throw(NonFiniteDensityError(y0, lp, :logdensity))
     return MHState(collect(float.(y0)), lp, L, log(s.scale), 0, 0, zeros(d), zeros(d, d))
 end
 

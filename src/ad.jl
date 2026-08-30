@@ -115,8 +115,6 @@ method. Defining the fallback on the abstract type rather than on
 extension, which Julia refuses to do during precompilation.
 """
 function logdensity_and_gradient(b::ADBackend, f, y::AbstractVector)
-    b isa ReverseDiffAD &&
-        error("ReverseDiffAD needs ReverseDiff to be loaded: `using ReverseDiff` brings in " *
-              "the AssayReverseDiffExt package extension that defines this method.")
-    error("no gradient method for backend $(typeof(b))")
+    b isa ReverseDiffAD && throw(BackendUnavailableError(typeof(b), :ReverseDiff))
+    throw(BackendUnavailableError(typeof(b), nothing))
 end
