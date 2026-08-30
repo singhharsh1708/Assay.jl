@@ -153,6 +153,10 @@ include("calibration.jl")
 export CalibrationProblem, conjugate_problem, sbc, SBCResult, rank_histogram,
        rank_uniformity_test, geweke, GewekeResult, calibrated
 
+# Did the variational approximation work
+include("vi_diagnostics.jl")
+export psis_check, vsbc, VSBCResult, unbiased, log_variational_density
+
 # Checks on the prior rather than on the posterior
 include("prior.jl")
 export prior_predictive, prior_predictive_check, power_scale, prior_sensitivity,
