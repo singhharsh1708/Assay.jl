@@ -78,14 +78,25 @@ the likelihood has to be pointwise rather than summed.
     ll = pointwise_log_likelihood(model, chains, (theta, i) -> logpdf(Normal(theta.mu, 1.0), y[i]),
                                   n_obs = length(y))
 """
-function pointwise_log_likelihood(model::AbstractModel, c::Chains, loglik;
-                                  n_obs::Int, thin::Int = 1)
+pointwise_log_likelihood(model::AbstractModel, c::Chains, loglik; n_obs::Int, thin::Int = 1) =
+    pointwise(model, c, loglik; n_obs = n_obs, thin = thin)
+
+"""
+    pointwise(model, chains, f; n_obs, thin = 1)
+
+A `draws x observations` matrix of `f(theta, i)`.
+
+[`pointwise_log_likelihood`](@ref) and [`pointwise_cdf`](@ref) are this with a
+docstring saying which quantity `f` should return; the ordering constraint that
+makes both usable is here.
+"""
+function pointwise(model::AbstractModel, c::Chains, f; n_obs::Int, thin::Int = 1)
     n_obs > 0 || throw(ArgumentError("n_obs must be positive"))
     S = n_parameter_draws(c; thin = thin)
     out = Matrix{Float64}(undef, S, n_obs)
     for (s, theta) in enumerate(parameter_draws(model, c; thin = thin))
         for i in 1:n_obs
-            out[s, i] = loglik(theta, i)
+            out[s, i] = f(theta, i)
         end
     end
     return out

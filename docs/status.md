@@ -165,6 +165,63 @@ of plus and minus 800. The posterior recovers the fitness vector, and the whole
 model passes simulation based calibration over 150 replications with all
 p values above 0.74.
 
+**Failures have types, and one chain dying does not end the run.** The six
+places that used to raise a bare `ErrorException` now raise `AssayError`
+subtypes carrying the position they failed at, so a caller can dispatch on the
+failure instead of matching its message. Each is tested by type rather than by
+string, including the case that is easy to get wrong: a log density that is
+finite at a point where its gradient is not, which a check on the density alone
+lets through. Chains are caught individually, so a run whose fourth chain walks
+into a region that throws returns the other three, the draws the fourth managed,
+and the point it died at, which is asserted to reproduce the failure when fed
+back into the log density. When no chain survives the error itself is raised,
+because there is nothing partial worth returning.
+
+**Progress is reported without choosing a display.** Two kinds of log message: a
+fraction at `LogLevel(-1)` with a stable id, which is what ProgressLogging.jl and
+TerminalLoggers.jl consume, and a throttled `Info` line, since the default logger
+filters everything below `Info` and without it a plain session would see nothing.
+Tested against a logger that collects rather than prints: the fractions are
+monotone, start at zero, end at one and are followed by the close message; four
+chains report one total of 400 rather than four totals of 100; and the throttle
+holds a sub-second run to at most three messages. Sequential Monte Carlo reports
+the temperature, since the number of tempering steps is chosen adaptively and
+there is no denominator to count against.
+
+**Diagnostics read back as advice.** `diagnose(chain)` reports findings in order
+of severity, each stating the number that produced it and the threshold it
+crossed. On the centred funnel it locates the divergences rather than counting
+them, naming `v` as the parameter they cluster on, and the non-centred version of
+the same posterior comes back silent. On the banana at target acceptance 0.95 it
+reports the handful of divergences as a warning, which is the case in
+[results.md](results.md) where 1 to 22 divergences accompanied a standard
+deviation wrong by 5 to 9 percent. A healthy conjugate fit produces nothing,
+which is asserted, because a function that always finds something to say is a
+horoscope. The acceptance check is one-sided for that reason: its first version
+fired on a correct fit where NUTS averaged 0.91 against a target of 0.80, which
+is what dual averaging does on easy geometry rather than a fault.
+
+**Mixtures, truncation and censoring.** A mixture is evaluated through
+`logsumexp`, and the failure it avoids is on record as a test: two components 500
+standard deviations apart, asked for the density halfway between them, where
+every term underflows before the sum happens and the naive form returns `-Inf`.
+Truncated densities integrate to one over their support by quadrature to `1e-4`
+and agree with Distributions.jl to `1e-10`; the normalising constant is taken
+from whichever end the mass is at, which at six standard deviations agrees with
+the complement to twelve digits and with the subtraction to six. Censoring is
+distinguished from truncation and checked by simulation based calibration, which
+passes on the censored model and fails on the same model with the censoring
+ignored: that bias is silent under every other check here.
+
+**Leave-one-out predictive calibration.** LOO-PIT against the simultaneous
+uniformity band. Uniform for a correctly specified normal, and not uniform for a
+normal fitted to Student-t data, on a fit where a posterior predictive check on
+the mean sees nothing wrong. The discrete case is tested in both forms: a Poisson
+model fitted to Poisson data is correct and the plain transform fails it anyway,
+because a discrete cdf lands on a lattice, and randomising across the jump
+restores uniformity. The uniformity test is shared with the calibration ranks
+rather than written twice, and the two routes are asserted to agree.
+
 **Hard geometries.** Neal's funnel, a `rho = 0.95` Gaussian and a banana, each
 against closed-form marginals. Where the sampler fails, the failure is asserted
 rather than hidden: the centred funnel is asserted to produce divergences and to
@@ -245,10 +302,6 @@ higher-order symplectic integrators, no delayed rejection.
 **Structure learning for sum-product networks.** The network structure is given
 by the user; only the weights are inferred. Learning the structure from data is
 a research problem in its own right and is not attempted.
-
-**Correlation matrix and covariance transforms.** The Cholesky-of-correlation
-transform is the obvious missing constraint, and hierarchical models want it. It
-is a known omission rather than an oversight.
 
 **Distributed sampling and GPU support.** Threads only.
 

@@ -109,10 +109,9 @@ draws it managed before dying.
 
 A log density that throws is not an exotic case. It indexes past the end of an
 array for one parameter value in a million, or takes the log of something that
-has just gone negative, or calls a solver that fails to converge. Before this
-existed, one such failure inside the threaded chain loop destroyed every chain
-in the run and arrived as a `TaskFailedException` wrapping the real error
-several frames down.
+has just gone negative, or calls a solver that fails to converge. A run that hit
+one of those returns the chains that survived and one of these for each that did
+not, rather than losing the lot.
 
 `last_position` is the point the chain was at when it died, which is the field
 that makes the failure reproducible: feed it back into the log density and watch
@@ -204,13 +203,12 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
         stats_c = Dict{Symbol,Vector{Float64}}()
         statbuf[c] = stats_c
         infos[c] = Dict{Symbol,Any}()
-        # visible to the catch block, which needs to say where the chain was
+        # Declared out here so the catch block can say where the chain was.
+        # `pos` follows every step rather than every stored draw: under thinning
+        # the last stored draw is not the point that reproduces the failure.
         row = 0
         phase = :initialisation
         iter = 0
-        # Where the chain is, updated every step rather than every stored draw:
-        # under thinning the last stored draw is not where it died, and the
-        # point that reproduces the failure is the one it died at.
         pos = Float64[]
         try
             crng = Random.Xoshiro(seeds[c])

@@ -124,14 +124,5 @@ its reason for existing: the draws have to be in the same order for every
 observation, and building the two matrices separately by hand is where that goes
 wrong.
 """
-function pointwise_cdf(model::AbstractModel, c::Chains, predictive_cdf; n_obs::Int, thin::Int = 1)
-    n_obs > 0 || throw(ArgumentError("n_obs must be positive"))
-    S = n_parameter_draws(c; thin = thin)
-    out = Matrix{Float64}(undef, S, n_obs)
-    for (s, theta) in enumerate(parameter_draws(model, c; thin = thin))
-        for i in 1:n_obs
-            out[s, i] = predictive_cdf(theta, i)
-        end
-    end
-    return out
-end
+pointwise_cdf(model::AbstractModel, c::Chains, predictive_cdf; n_obs::Int, thin::Int = 1) =
+    pointwise(model, c, predictive_cdf; n_obs = n_obs, thin = thin)
