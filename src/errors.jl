@@ -1,12 +1,12 @@
 # The failures a caller can act on, as types rather than as message text.
 #
-# Six places in this package used to call `error(...)`, which produces an
-# `ErrorException` carrying a string. Anything wrapping the package that wanted
-# to respond to a bad initial point differently from a missing gradient backend
-# had to match on that string, and the string is the part most likely to be
-# reworded.
+# `error(...)` produces an `ErrorException` carrying a string, so anything
+# wrapping the package that wants to respond to a bad initial point differently
+# from a missing gradient backend has to match on that string, and the string is
+# the part most likely to be reworded. Everything raised deliberately here has a
+# type instead.
 #
-# Every one of these carries the position it failed at. That is the difference
+# Every one of them carries the position it failed at. That is the difference
 # between a message saying a gradient was not finite and a message a user can
 # paste back into their own log density to see it happen again.
 

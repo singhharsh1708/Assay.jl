@@ -264,14 +264,12 @@ function diagnose(c::Chains; rhat_threshold::Real = 1.01, ess_per_chain::Real = 
     # ---- acceptance against its own target ------------------------------
     if haskey(c.stats, :accept_prob) && sampler !== nothing && hasproperty(sampler, :target_accept)
         push!(run, :acceptance)
-        # One-sided on purpose. The first version of this check fired on a
-        # conjugate normal that was correct in every other respect: NUTS
-        # averaged 0.91 against a target of 0.80, because the reported number is
-        # the mean Metropolis probability over a whole trajectory and on easy
-        # geometry that sits comfortably above what dual averaging aimed at.
-        # Flagging it was the horoscope failure this function is supposed to
-        # avoid. Acceptance far below target means adaptation did not get there;
-        # above target means nothing.
+        # One-sided on purpose. The reported figure is the mean Metropolis
+        # probability over a whole trajectory, and on easy geometry that sits
+        # comfortably above what dual averaging aimed at: a correct conjugate
+        # normal comes back at 0.91 against a target of 0.80. Acceptance far
+        # below target means adaptation did not get there; above it means
+        # nothing.
         a = acceptance_rate(c)
         if a < sampler.target_accept - 0.15
             push!(findings, Finding(:note, :acceptance,

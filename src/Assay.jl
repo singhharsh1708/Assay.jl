@@ -79,7 +79,7 @@ export ess, ess_bulk, ess_tail, ess_quantile, rhat, rhat_plain, mcse_mean, mcse_
 
 # Working with a fitted posterior
 include("predictive.jl")
-export parameter_draws, n_parameter_draws, predictive, pointwise_log_likelihood,
+export parameter_draws, n_parameter_draws, predictive, pointwise, pointwise_log_likelihood,
        predictive_check, PredictiveCheck
 
 # Importance sampling diagnostics and cross validation
