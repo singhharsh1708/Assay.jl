@@ -115,6 +115,10 @@ export SMC, SMCResult, TemperedModel, AbstractResampler, MultinomialResampling,
        StratifiedResampling, SystematicResampling, ResidualResampling, resample,
        ess_weights, AdaptiveRandomWalk, weighted_mean, weighted_std, weighted_quantile
 
+# Reading the diagnostics back as advice
+include("diagnose.jl")
+export diagnose, Diagnosis, Finding, healthy
+
 # Reference problems with closed-form answers
 include("conjugate.jl")
 export beta_bernoulli, normal_normal, gamma_poisson

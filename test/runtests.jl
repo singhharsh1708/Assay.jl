@@ -22,6 +22,7 @@ include("testutils.jl")
     include("test_calibration.jl")
     include("test_negative_controls.jl")
     include("test_geometries.jl")
+    include("test_diagnose.jl")
     include("test_spn.jl")
     include("test_dynamics.jl")
     # Order matters here, and by minutes rather than seconds. Loading a large
