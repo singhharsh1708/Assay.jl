@@ -1,3 +1,6 @@
+# A backend no extension will ever define, for the fallback path.
+struct UnbackedAD <: AS.ADBackend end
+
 @testset "working with a fitted posterior" begin
     rng = Random.Xoshiro(5150)
 
@@ -15,14 +18,65 @@
         catch e
             e
         end
-        @test err !== nothing
+        @test err isa AS.NonDeterministicModelError
         @test occursin("not deterministic", sprint(showerror, err))
+        # the position is carried, not only described
+        @test length(err.position) == 1
+        @test err.first != err.second
 
         data = randn(rng, 30)
         good = AS.Model((mu = AS.unconstrained(),),
                         t -> AS.loglikelihood(AS.Normal(t.mu, 1.0), data))
         @test AS.check_model(good, [0.0]) === good
-        @test_throws ArgumentError AS.check_model(good, [NaN])
+        @test_throws AS.NonFiniteDensityError AS.check_model(good, [NaN])
+    end
+
+    @testset "the failures a caller can act on have types" begin
+        # Matching on message text is what these replace. Each one carries the
+        # position, which is the part that makes the failure reproducible by
+        # hand rather than only describable.
+        data = randn(rng, 20)
+        good = AS.Model((mu = AS.unconstrained(),),
+                        t -> AS.loglikelihood(AS.Normal(t.mu, 1.0), data))
+
+        e = try AS.check_model(good, [NaN]) catch e; e end
+        @test e isa AS.NonFiniteDensityError
+        @test e isa AS.AssayError
+        @test e.what === :logdensity
+        @test isnan(e.value)
+        @test isnan(e.position[1])
+        @test occursin("Position:", sprint(showerror, e))
+
+        # a density that is finite nowhere: the search reports what it tried
+        nowhere = AS.Model((mu = AS.unconstrained(),), t -> -Inf)
+        e = try AS.random_init(Random.Xoshiro(1), nowhere; tries = 7) catch e; e end
+        @test e isa AS.InitialisationError
+        @test e.tries == 7
+        @test e.dimension == 1
+        @test e.last_value == -Inf
+        @test occursin("no point with a finite log density found in 7", sprint(showerror, e))
+
+        # A finite log density with a gradient that is not: the value at zero is
+        # fine and the slope there is not, which is exactly the case a check on
+        # the density alone lets through. The coordinate at fault is named.
+        cusp = AS.Model((mu = AS.unconstrained(), nu = AS.unconstrained()),
+                        t -> -sqrt(abs(t.mu)) + AS.logpdf(AS.Normal(0.0, 1.0), t.nu))
+        @test isfinite(AS.logdensity(cusp, [0.0, 0.5]))
+        e = try AS.sample(cusp, AS.NUTS(), 10; n_warmup = 5, init = [0.0, 0.5],
+                          rng = Random.Xoshiro(2)) catch e; e end
+        @test e isa AS.NonFiniteDensityError
+        @test e.what === :gradient
+        @test e.coordinate == 1
+        @test occursin("coordinate 1 of the gradient", sprint(showerror, e))
+
+        # a backend with nothing behind it, which does not depend on whether an
+        # extension happens to be loaded by the time this file runs
+        e = try AS.logdensity_and_gradient(UnbackedAD(), sum, [1.0]) catch e; e end
+        @test e isa AS.BackendUnavailableError
+        @test e.package === nothing
+        @test occursin("no gradient method", sprint(showerror, e))
+        @test occursin("using ReverseDiff",
+                       sprint(showerror, AS.BackendUnavailableError(AS.ReverseDiffAD, :ReverseDiff)))
     end
 
     @testset "parameters reconstruct exactly from a chain" begin
@@ -116,6 +170,72 @@
         @test isempty(AS.problematic(r))
         @test_throws ArgumentError AS.pointwise_log_likelihood(ref.model, chn, (t, i) -> 0.0;
                                                               n_obs = 0)
+    end
+
+    @testset "one chain dying does not take the run with it" begin
+        # A log density that throws for some parameter values, which is the
+        # ordinary case: an index out of bounds, a log of something that just
+        # went negative, a solver that did not converge. Chain four starts in
+        # the region that throws and the other three never reach it.
+        data = randn(rng, 20)
+        # The band sits between chain four's starting point and the posterior,
+        # so that chain has to walk into it and dies partway through warmup
+        # with draws already stored. The other three start on the far side of
+        # it and stay there.
+        fragile = AS.Model((mu = AS.unconstrained(),),
+                           function (t)
+                               5 < t.mu < 8 && throw(DomainError(t.mu, "outside the table"))
+                               return AS.logpdf(AS.Normal(0.0, 3.0), t.mu) +
+                                      AS.loglikelihood(AS.Normal(t.mu, 1.0), data)
+                           end)
+
+        chn = AS.sample(fragile, AS.RandomWalkMH(; scale = 0.1), 200;
+                        n_warmup = 300, n_chains = 4, keep_warmup = true,
+                        init = [[0.0], [0.0], [0.0], [9.9]], rng = Random.Xoshiro(404))
+
+        @test AS.failed(chn)
+        @test AS.nchains(chn) == 3                       # the survivors came back
+        @test length(AS.failures(chn)) == 1
+        @test chn.info[:n_chains_requested] == 4
+
+        f = only(AS.failures(chn))
+        @test f.chain == 4
+        @test f.error isa DomainError
+        @test f.phase === :warmup
+        @test f.iteration > 0
+
+        # what it managed before dying is kept, not discarded
+        @test size(f.value, 1) > 0
+        @test size(f.value, 1) == size(f.unconstrained, 1)
+        @test all(isfinite, f.value)
+
+        # and the position it died at is carried, so the failure reproduces
+        @test length(f.last_position) == 1
+        @test isfinite(only(f.last_position))
+        @test only(f.last_position) > 8              # it died on the way in
+        @test_throws DomainError AS.logdensity(fragile, [6.5])
+        # the draws it kept are the ones it took before that, in order
+        @test f.unconstrained[end, 1] < 10
+        @test size(f.value, 1) <= f.iteration
+
+        # the surviving chains are ordinary chains: every diagnostic still works
+        @test all(isfinite, vec(chn[:mu]))
+        @test isfinite(AS.rhat(chn[:mu]))
+        @test AS.ndraws(chn) == 500                      # warmup kept
+        @test size(chn.stats[:accept_prob]) == (500, 3)
+        @test occursin("ChainFailure(chain 4", sprint(show, f))
+
+        # a run where every chain dies has no partial result worth returning,
+        # so the error itself is what comes back
+        e = try AS.sample(fragile, AS.RandomWalkMH(), 50; n_warmup = 20, n_chains = 2,
+                          init = [6.5], rng = Random.Xoshiro(5)) catch e; e end
+        @test e isa DomainError
+
+        # and a clean run says so, without a failures field getting in the way
+        good = AS.sample(fragile, AS.RandomWalkMH(), 200; n_warmup = 200, n_chains = 2,
+                         rng = Random.Xoshiro(6))
+        @test !AS.failed(good)
+        @test isempty(AS.failures(good))
     end
 
     @testset "subsetting a chain" begin

@@ -352,8 +352,11 @@ function init_hamiltonian_state(rng::AbstractRNG, model::AbstractModel, y0::Abst
     d = dimension(model)
     metric = make_metric(metric_kind, d)
     lp, grad = logdensity_and_gradient(model, collect(float.(y0)); backend = backend)
-    isfinite(lp) || error("initial point has non-finite log density")
-    all(isfinite, grad) || error("initial point has a non-finite gradient")
+    isfinite(lp) || throw(NonFiniteDensityError(y0, lp, :logdensity))
+    if !all(isfinite, grad)
+        i = findfirst(!isfinite, grad)
+        throw(NonFiniteDensityError(collect(float.(y0)), grad[i], :gradient, i))
+    end
     eps = isnan(step_size) ? find_reasonable_step_size(rng, model, metric, y0, backend) : float(step_size)
     da = DualAveraging(eps; target = target_accept)
     welford = WelfordAccumulator(d; dense = metric_kind === :dense)

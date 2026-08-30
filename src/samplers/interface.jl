@@ -76,16 +76,9 @@ function check_model(model::AbstractModel, y::AbstractVector)
     first_value = logdensity(model, y)
     second_value = logdensity(model, y)
     if !isequal(first_value, second_value)
-        throw(ArgumentError(
-            "the log density is not deterministic: evaluating it twice at the same point gave " *
-            "$first_value and $second_value. A sampler cannot target a moving distribution. " *
-            "The usual cause is randomness inside the model, such as data drawn with `rand` or " *
-            "`randn` inside the closure; generate it once outside and close over it."))
+        throw(NonDeterministicModelError(collect(float.(y)), first_value, second_value))
     end
-    isfinite(first_value) || throw(ArgumentError(
-        "the log density is $first_value at the initial point. If the model is correct, supply " *
-        "`init` explicitly; if a parameter is constrained, check it is declared with the matching " *
-        "transform rather than being constrained inside the log density."))
+    isfinite(first_value) || throw(NonFiniteDensityError(y, first_value, :logdensity))
     return model
 end
 
@@ -97,13 +90,66 @@ Stan's initialisation rule: draw each unconstrained coordinate uniformly on
 finite.
 """
 function random_init(rng::AbstractRNG, model::AbstractModel; scale::Real = 2.0, tries::Int = 100)
+    d = dimension(model)
+    y = zeros(d)
+    lp = -Inf
     for _ in 1:tries
-        y = (2 .* rand(rng, dimension(model)) .- 1) .* scale
+        y = (2 .* rand(rng, d) .- 1) .* scale
         lp = logdensity(model, y)
         isfinite(lp) && return y
     end
-    error("could not find a finite-log-density initial point in $tries tries; supply `init` explicitly")
+    throw(InitialisationError(tries, float(scale), d, y, lp))
 end
+
+"""
+    ChainFailure
+
+One chain that did not finish: which chain, how far it got, the error, and the
+draws it managed before dying.
+
+A log density that throws is not an exotic case. It indexes past the end of an
+array for one parameter value in a million, or takes the log of something that
+has just gone negative, or calls a solver that fails to converge. Before this
+existed, one such failure inside the threaded chain loop destroyed every chain
+in the run and arrived as a `TaskFailedException` wrapping the real error
+several frames down.
+
+`last_position` is the point the chain was at when it died, which is the field
+that makes the failure reproducible: feed it back into the log density and watch
+it happen again. It tracks every step rather than every stored draw, so it is
+still the right point under thinning, and it is the initial point when the chain
+never took a step at all.
+"""
+struct ChainFailure
+    chain::Int
+    phase::Symbol                  # :initialisation, :warmup or :sampling
+    iteration::Int
+    error::Any
+    last_position::Vector{Float64}
+    value::Matrix{Float64}         # constrained draws kept before the failure
+    unconstrained::Matrix{Float64}
+end
+
+function Base.show(io::IO, f::ChainFailure)
+    @printf(io, "ChainFailure(chain %d, %s iteration %d, %d draws kept, %s)",
+            f.chain, f.phase, f.iteration, size(f.value, 1), typeof(f.error))
+end
+
+"""
+    failures(chains)
+
+The chains that did not finish, as [`ChainFailure`](@ref) values. Empty when the
+run was clean.
+"""
+failures(c::Chains) = get(c.info, :failures, ChainFailure[])
+
+"""
+    failed(chains)
+
+Whether any chain of the run died. A run that lost chains is still returned, so
+this is the way to find out.
+"""
+failed(c::Chains) = !isempty(failures(c))
 
 """
     sample(model, sampler, n_draws; kwargs...)
@@ -146,52 +192,94 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
     statbuf = Vector{Dict{Symbol,Vector{Float64}}}(undef, n_chains)
     infos = Vector{Dict{Symbol,Any}}(undef, n_chains)
 
+    failures = Vector{Union{Nothing,ChainFailure}}(nothing, n_chains)
+
     t0 = time()
     Threads.@threads for c in 1:n_chains
-        crng = Random.Xoshiro(seeds[c])
-        y0 = inits[c] === nothing ? random_init(crng, model) : inits[c]
-        c == 1 && check_model(model, y0)
-        state = init_state(crng, model, sampler, y0; n_warmup = n_warmup)
         stats_c = Dict{Symbol,Vector{Float64}}()
-        row = 0
-        for i in 1:n_warmup
-            y, st = step!(crng, model, sampler, state, true)
-            if keep_warmup
-                row += 1
-                value[row, :, c] = flatten_draw(model, y)
-                raw[row, :, c] = y
-                _push_stats!(stats_c, st, total_stored, row)
-            end
-        end
-        state = finish_warmup!(crng, model, sampler, state)
-        for i in 1:n_draws
-            y, st = step!(crng, model, sampler, state, false)
-            if (i - 1) % thin == 0
-                row += 1
-                value[row, :, c] = flatten_draw(model, y)
-                raw[row, :, c] = y
-                _push_stats!(stats_c, st, total_stored, row)
-            end
-        end
         statbuf[c] = stats_c
-        infos[c] = Dict{Symbol,Any}(:final_state => summary_of(state))
+        infos[c] = Dict{Symbol,Any}()
+        # visible to the catch block, which needs to say where the chain was
+        row = 0
+        phase = :initialisation
+        iter = 0
+        # Where the chain is, updated every step rather than every stored draw:
+        # under thinning the last stored draw is not where it died, and the
+        # point that reproduces the failure is the one it died at.
+        pos = Float64[]
+        try
+            crng = Random.Xoshiro(seeds[c])
+            y0 = inits[c] === nothing ? random_init(crng, model) : inits[c]
+            pos = collect(float.(y0))
+            c == 1 && check_model(model, y0)
+            state = init_state(crng, model, sampler, y0; n_warmup = n_warmup)
+            phase = :warmup
+            for i in 1:n_warmup
+                iter = i
+                y, st = step!(crng, model, sampler, state, true)
+                pos = y
+                if keep_warmup
+                    row += 1
+                    value[row, :, c] = flatten_draw(model, y)
+                    raw[row, :, c] = y
+                    _push_stats!(stats_c, st, total_stored, row)
+                end
+            end
+            state = finish_warmup!(crng, model, sampler, state)
+            phase = :sampling
+            for i in 1:n_draws
+                iter = i
+                y, st = step!(crng, model, sampler, state, false)
+                pos = y
+                if (i - 1) % thin == 0
+                    row += 1
+                    value[row, :, c] = flatten_draw(model, y)
+                    raw[row, :, c] = y
+                    _push_stats!(stats_c, st, total_stored, row)
+                end
+            end
+            infos[c] = Dict{Symbol,Any}(:final_state => summary_of(state))
+        catch e
+            e isa InterruptException && rethrow()
+            failures[c] = ChainFailure(c, phase, iter, e, collect(float.(pos)),
+                                       row > 0 ? value[1:row, :, c] : zeros(0, P),
+                                       row > 0 ? raw[1:row, :, c] : zeros(0, D))
+        end
     end
     elapsed = time() - t0
+
+    kept_chains = [c for c in 1:n_chains if failures[c] === nothing]
+    broke = ChainFailure[failures[c] for c in 1:n_chains if failures[c] !== nothing]
+    if isempty(kept_chains)
+        # Nothing came back, so there is no partial result to hand over and the
+        # honest thing is the error itself rather than an empty container.
+        throw(first(broke).error)
+    end
+    if !isempty(broke)
+        @warn "$(length(broke)) of $n_chains chains failed and were dropped; " *
+              "`failures(chains)` has the errors and the draws each one managed."
+    end
 
     keys_all = sort(collect(union((Set(keys(s)) for s in statbuf)...)); by = String)
     stats = Dict{Symbol,Array{Float64,2}}()
     for k in keys_all
-        M = Array{Float64,2}(undef, total_stored, n_chains)
-        for c in 1:n_chains
+        M = Array{Float64,2}(undef, total_stored, length(kept_chains))
+        for (j, c) in enumerate(kept_chains)
             v = get(statbuf[c], k, Float64[])
-            M[:, c] .= length(v) == total_stored ? v : NaN
+            M[:, j] .= length(v) == total_stored ? v : NaN
         end
         stats[k] = M
     end
     info = Dict{Symbol,Any}(:sampler => sampler, :n_warmup => n_warmup, :thin => thin,
-                            :time_seconds => elapsed, :chain_info => infos,
-                            :warmup_kept => keep_warmup)
-    return Chains(value, parameter_names(model), stats, info, raw)
+                            :time_seconds => elapsed, :chain_info => infos[kept_chains],
+                            :warmup_kept => keep_warmup, :failures => broke,
+                            :n_chains_requested => n_chains)
+    # Slicing would copy the whole draw array, which for a large run is the
+    # single biggest allocation the sampler makes. Nothing failed, nothing to
+    # slice.
+    clean = length(kept_chains) == n_chains
+    return Chains(clean ? value : value[:, :, kept_chains], parameter_names(model), stats, info,
+                  clean ? raw : raw[:, :, kept_chains])
 end
 
 function _push_stats!(d::Dict{Symbol,Vector{Float64}}, st::NamedTuple, n::Int, row::Int)

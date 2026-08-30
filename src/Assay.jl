@@ -28,7 +28,11 @@ using SpecialFunctions: loggamma, logbeta, erf, erfc, beta_inc, gamma_inc
 import Statistics
 import Statistics: mean, var, std, median, quantile
 
-# Layer 0: numerics
+# Layer 0: errors and numerics
+include("errors.jl")
+export AssayError, NonDeterministicModelError, NonFiniteDensityError, InitialisationError,
+       BackendUnavailableError
+
 include("utils.jl")
 export logistic, logit, log1pexp, logsumexp, fft!, ifft!, next_power_of_two
 
@@ -81,7 +85,7 @@ export psis, PSISResult, reliable, gpd_fit, gpd_quantile, loo, LOOResult, proble
 # Layer 5: samplers
 include("samplers/interface.jl")
 export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, random_init,
-       check_model
+       check_model, ChainFailure, failures, failed
 
 include("samplers/mh.jl")
 export RandomWalkMH, AcceptanceRule, MetropolisRule, BarkerRule, accept_prob
