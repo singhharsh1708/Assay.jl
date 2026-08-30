@@ -98,6 +98,9 @@ export AbstractSampler, sample, init_state, step!, refresh!, finish_warmup!, ran
 include("samplers/mh.jl")
 export RandomWalkMH, AcceptanceRule, MetropolisRule, BarkerRule, accept_prob
 
+include("samplers/gradient_mh.jl")
+export MALA, Barker
+
 include("samplers/hamiltonian.jl")
 export AbstractMetric, UnitMetric, DiagMetric, DenseMetric, leapfrog, hamiltonian,
        kinetic, velocity, rand_momentum
