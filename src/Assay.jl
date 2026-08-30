@@ -135,7 +135,11 @@ export SPNNode, LeafNode, SumNode, ProductNode, sum_node, product_node, scope,
 # Uniformity testing for calibration ranks
 include("ecdf.jl")
 export ecdf_simultaneous_band, ecdf_band_coverage, rank_ecdf, rank_uniformity_ecdf,
-       binomial_quantile
+       uniformity_ecdf, binomial_quantile
+
+# Leave-one-out predictive calibration
+include("loo_pit.jl")
+export loo_pit, LOOPITResult, pointwise_cdf
 
 # Calibration checks against the joint distribution
 include("calibration.jl")
