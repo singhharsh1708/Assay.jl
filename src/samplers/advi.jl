@@ -235,8 +235,11 @@ end
 
 Fit the variational approximation and return a [`VIResult`](@ref).
 """
-function sample(model::AbstractModel, spl::ADVI; rng::AbstractRNG = Random.default_rng(), init = nothing)
+function sample(model::AbstractModel, spl::ADVI; rng::AbstractRNG = Random.default_rng(),
+                init = nothing, progress::Bool = false, progress_interval::Real = 10.0)
     t0 = time()
+    reporter = ProgressReporter(spl.n_iterations; on = progress, interval = progress_interval,
+                                what = "optimising the variational objective")
     d = dimension(model)
     np = n_variational_params(spl.family, d)
     params = zeros(np)
@@ -267,6 +270,7 @@ function sample(model::AbstractModel, spl::ADVI; rng::AbstractRNG = Random.defau
 
     for t in 1:spl.n_iterations
         iter = t
+        tick!(reporter)
         # Reparameterisation gradient: the standard normal draws are fixed
         # inside the gradient evaluation, which is what makes this estimator
         # low variance compared to the score-function form.
@@ -314,6 +318,8 @@ function sample(model::AbstractModel, spl::ADVI; rng::AbstractRNG = Random.defau
             end
         end
     end
+
+    finish!(reporter)
 
     final = elbo(model, spl.family, params_avg, rng, 4 * spl.elbo_samples)
     return VIResult(spl.family, model, params_avg, trace, trace_iters, final, converged, iter,

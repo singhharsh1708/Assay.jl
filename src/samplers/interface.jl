@@ -164,6 +164,8 @@ Keyword arguments:
   * `init`         : unconstrained starting point, or a vector of one per chain
   * `keep_warmup`  : also store the warmup draws
   * `thin`         : keep every `thin`-th draw after warmup
+  * `progress`     : report progress as log messages, see [`ProgressReporter`](@ref)
+  * `progress_interval` : seconds between the throttled progress lines
 """
 function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
                 n_warmup::Int = max(n_draws ÷ 2, 100),
@@ -172,7 +174,8 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
                 init = nothing,
                 keep_warmup::Bool = false,
                 thin::Int = 1,
-                progress::Bool = false)
+                progress::Bool = false,
+                progress_interval::Real = 10.0)
     n_draws > 0 || throw(ArgumentError("n_draws must be positive"))
     thin >= 1 || throw(ArgumentError("thin must be at least 1"))
     seeds = rand(rng, UInt64, n_chains)
@@ -193,6 +196,8 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
     infos = Vector{Dict{Symbol,Any}}(undef, n_chains)
 
     failures = Vector{Union{Nothing,ChainFailure}}(nothing, n_chains)
+    reporter = ProgressReporter(n_chains * (n_warmup + n_draws); on = progress,
+                                interval = progress_interval)
 
     t0 = time()
     Threads.@threads for c in 1:n_chains
@@ -218,6 +223,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
                 iter = i
                 y, st = step!(crng, model, sampler, state, true)
                 pos = y
+                tick!(reporter)
                 if keep_warmup
                     row += 1
                     value[row, :, c] = flatten_draw(model, y)
@@ -231,6 +237,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
                 iter = i
                 y, st = step!(crng, model, sampler, state, false)
                 pos = y
+                tick!(reporter)
                 if (i - 1) % thin == 0
                     row += 1
                     value[row, :, c] = flatten_draw(model, y)
@@ -247,6 +254,7 @@ function sample(model::AbstractModel, sampler::AbstractSampler, n_draws::Int;
         end
     end
     elapsed = time() - t0
+    finish!(reporter)
 
     kept_chains = [c for c in 1:n_chains if failures[c] === nothing]
     broke = ChainFailure[failures[c] for c in 1:n_chains if failures[c] !== nothing]

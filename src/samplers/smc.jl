@@ -326,8 +326,11 @@ end
 
 Run sequential Monte Carlo and return an [`SMCResult`](@ref).
 """
-function sample(tm::TemperedModel, spl::SMC; rng::AbstractRNG = Random.default_rng(), init = nothing)
+function sample(tm::TemperedModel, spl::SMC; rng::AbstractRNG = Random.default_rng(),
+                init = nothing, progress::Bool = false, progress_interval::Real = 10.0)
     t0 = time()
+    reporter = ProgressReporter(spl.max_steps; on = progress, interval = progress_interval,
+                                what = "tempering")
     N = spl.n_particles
     d = dimension(tm)
     ys = Matrix{Float64}(undef, N, d)
@@ -386,7 +389,12 @@ function sample(tm::TemperedModel, spl::SMC; rng::AbstractRNG = Random.default_r
         acc = rejuvenate!(rng, ys, tm, beta, spl.kernel, logw)
         push!(accept_trace, acc)
         loglik = [loglik_at(tm, view(ys, i, :)) for i in 1:N]
+        # the temperature is the progress: how many more steps it will take to
+        # get from here to one is not known, and is not the question anyway
+        report!(reporter, beta; completed = steps)
     end
+
+    finish!(reporter)
 
     w = similar(logw)
     softmax!(w, logw)
