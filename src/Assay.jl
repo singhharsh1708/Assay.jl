@@ -119,6 +119,10 @@ export SMC, SMCResult, TemperedModel, AbstractResampler, MultinomialResampling,
        StratifiedResampling, SystematicResampling, ResidualResampling, resample,
        ess_weights, AdaptiveRandomWalk, weighted_mean, weighted_std, weighted_quantile
 
+# Modes and the Gaussian that matches the curvature at one
+include("optimise.jl")
+export find_mode, ModeResult, laplace, LaplaceResult
+
 # Reading the diagnostics back as advice
 include("diagnose.jl")
 export diagnose, Diagnosis, Finding, healthy
