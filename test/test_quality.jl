@@ -11,4 +11,16 @@ using Aqua: Aqua
     @testset "no ambiguities within the package" begin
         Aqua.test_ambiguities(AS)
     end
+
+    @testset "every exported name has a docstring" begin
+        # The same check CI runs. It lived only there, so a name exported
+        # without documentation stayed invisible until after a push.
+        missing_docs = Symbol[]
+        for name in names(AS)
+            name === :Assay && continue
+            doc = string(Base.Docs.doc(Base.Docs.Binding(AS, name)))
+            occursin("No documentation found", doc) && push!(missing_docs, name)
+        end
+        @test missing_docs == Symbol[]
+    end
 end

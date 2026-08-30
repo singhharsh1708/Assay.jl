@@ -86,6 +86,11 @@ struct MixtureDensity{C<:UnivariateDensity,W<:AbstractVector{<:Real}} <: Univari
     end
 end
 
+"""
+    n_components(d::MixtureDensity)
+
+How many components the mixture has.
+"""
 n_components(d::MixtureDensity) = length(d.components)
 
 function logpdf(d::MixtureDensity, x::Real)
