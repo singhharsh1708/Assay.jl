@@ -66,7 +66,13 @@ function measure(model, sampler, param, seed)
     x = chn[param]
     e = AS.ess_bulk(x)
     secs = chn.info[:time_seconds]
-    grads = haskey(chn.stats, :n_leapfrog) ? sum(AS.sampler_stat(chn, :n_leapfrog)) : NaN
+    grads = if haskey(chn.stats, :n_leapfrog)
+        sum(AS.sampler_stat(chn, :n_leapfrog))
+    elseif haskey(chn.stats, :n_gradient)
+        sum(AS.sampler_stat(chn, :n_gradient))
+    else
+        NaN
+    end
     return (ess = e, seconds = secs, ess_per_sec = e / secs,
             grads_per_ess = grads / e, rhat = AS.rhat(x),
             divergences = AS.divergences(chn))
@@ -88,6 +94,8 @@ function main()
 
     samplers = [("RWM", AS.RandomWalkMH()),
                 ("RWM (adapted covariance)", AS.RandomWalkMH(; adapt_cov = true)),
+                ("MALA", AS.MALA()),
+                ("Barker", AS.Barker()),
                 ("HMC (L=10)", AS.HMC()),
                 ("NUTS", AS.NUTS()),
                 ("NUTS (dense metric)", AS.NUTS(; metric = :dense))]

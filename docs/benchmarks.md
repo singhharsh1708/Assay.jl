@@ -10,31 +10,64 @@ Chains run in parallel across threads, so `seconds` is wall clock for the whole 
 
 | model | sampler | ESS | ms | ESS/sec | gradients/ESS | R-hat | divergences |
 |---|---|---:|---:|---:|---:|---:|---:|
-| gamma-poisson (1d) | RWM | 640 | 2.3 | 281158 | - | 1.007 | 0 |
-| gamma-poisson (1d) | RWM (adapted covariance) | 915 | 2.4 | 384585 | - | 1.009 | 0 |
-| gamma-poisson (1d) | HMC (L=10) | 7647 | 36.3 | 210434 | 5.2 | 1.002 | 0 |
-| gamma-poisson (1d) | NUTS | 1491 | 10.5 | 141768 | 6.2 | 1.001 | 0 |
-| gamma-poisson (1d) | NUTS (dense metric) | 1491 | 11.0 | 136127 | 6.2 | 1.001 | 0 |
-| ill-conditioned normal (10d) | RWM | 457 | 5.3 | 86231 | - | 1.009 | 0 |
-| ill-conditioned normal (10d) | RWM (adapted covariance) | 164 | 4.6 | 35808 | - | 1.016 | 0 |
-| ill-conditioned normal (10d) | HMC (L=10) | 5369 | 105.7 | 50778 | 7.5 | 1.003 | 0 |
-| ill-conditioned normal (10d) | NUTS | 5969 | 117.5 | 50784 | 4.2 | 1.002 | 0 |
-| ill-conditioned normal (10d) | NUTS (dense metric) | 7334 | 125.8 | 58319 | 3.6 | 1.000 | 0 |
-| correlated normal (2d, rho=0.95) | RWM | 115 | 4.1 | 28204 | - | 1.053 | 0 |
-| correlated normal (2d, rho=0.95) | RWM (adapted covariance) | 465 | 4.5 | 103815 | - | 1.004 | 0 |
-| correlated normal (2d, rho=0.95) | HMC (L=10) | 3664 | 24.3 | 150707 | 10.9 | 1.001 | 0 |
-| correlated normal (2d, rho=0.95) | NUTS | 697 | 26.2 | 26665 | 46.7 | 1.004 | 0 |
-| correlated normal (2d, rho=0.95) | NUTS (dense metric) | 3825 | 12.2 | 313963 | 3.1 | 1.000 | 0 |
-| funnel, non-centred (10d) | RWM | 10 | 1.2 | 8383 | - | 1.314 | 0 |
-| funnel, non-centred (10d) | RWM (adapted covariance) | 32 | 1.5 | 21626 | - | 1.103 | 0 |
-| funnel, non-centred (10d) | HMC (L=10) | 1219 | 54.9 | 22219 | 32.8 | 1.002 | 0 |
-| funnel, non-centred (10d) | NUTS | 7236 | 26.0 | 278720 | 3.5 | 1.000 | 0 |
-| funnel, non-centred (10d) | NUTS (dense metric) | 5895 | 42.8 | 137622 | 4.5 | 1.000 | 0 |
-| eight schools, non-centred (10d) | RWM | 10 | 2.1 | 4803 | - | 1.302 | 0 |
-| eight schools, non-centred (10d) | RWM (adapted covariance) | 8 | 2.2 | 3450 | - | 1.495 | 0 |
-| eight schools, non-centred (10d) | HMC (L=10) | 14408 | 45.5 | 316407 | 2.8 | 1.013 | 0 |
-| eight schools, non-centred (10d) | NUTS | 4175 | 58.7 | 71162 | 6.9 | 1.000 | 2 |
-| eight schools, non-centred (10d) | NUTS (dense metric) | 3703 | 72.8 | 50860 | 9.6 | 1.001 | 2 |
+| gamma-poisson (1d) | RWM | 640 | 3.7 | 171324 | - | 1.007 | 0 |
+| gamma-poisson (1d) | RWM (adapted covariance) | 915 | 3.6 | 257043 | - | 1.009 | 0 |
+| gamma-poisson (1d) | MALA | 2836 | 5.5 | 512474 | 1.4 | 1.000 | 0 |
+| gamma-poisson (1d) | Barker | 1457 | 5.3 | 272813 | 2.7 | 1.001 | 0 |
+| gamma-poisson (1d) | HMC (L=10) | 7647 | 41.7 | 183477 | 5.2 | 1.002 | 0 |
+| gamma-poisson (1d) | NUTS | 1491 | 28.6 | 52098 | 6.2 | 1.001 | 0 |
+| gamma-poisson (1d) | NUTS (dense metric) | 1491 | 16.9 | 88062 | 6.2 | 1.001 | 0 |
+| ill-conditioned normal (10d) | RWM | 457 | 6.9 | 66016 | - | 1.009 | 0 |
+| ill-conditioned normal (10d) | RWM (adapted covariance) | 164 | 6.5 | 25147 | - | 1.016 | 0 |
+| ill-conditioned normal (10d) | MALA | 2131 | 19.8 | 107638 | 1.9 | 1.002 | 0 |
+| ill-conditioned normal (10d) | Barker | 724 | 9.2 | 78969 | 5.5 | 1.006 | 0 |
+| ill-conditioned normal (10d) | HMC (L=10) | 5369 | 119.3 | 44999 | 7.5 | 1.003 | 0 |
+| ill-conditioned normal (10d) | NUTS | 5969 | 139.3 | 42847 | 4.2 | 1.002 | 0 |
+| ill-conditioned normal (10d) | NUTS (dense metric) | 7334 | 153.6 | 47756 | 3.6 | 1.000 | 0 |
+| correlated normal (2d, rho=0.95) | RWM | 115 | 4.8 | 23728 | - | 1.053 | 0 |
+| correlated normal (2d, rho=0.95) | RWM (adapted covariance) | 465 | 5.1 | 91881 | - | 1.004 | 0 |
+| correlated normal (2d, rho=0.95) | MALA | 80 | 2.8 | 28599 | 50.0 | 1.029 | 0 |
+| correlated normal (2d, rho=0.95) | Barker | 73 | 2.8 | 25982 | 54.8 | 1.051 | 0 |
+| correlated normal (2d, rho=0.95) | HMC (L=10) | 3664 | 21.6 | 169604 | 10.9 | 1.001 | 0 |
+| correlated normal (2d, rho=0.95) | NUTS | 697 | 23.4 | 29846 | 46.7 | 1.004 | 0 |
+| correlated normal (2d, rho=0.95) | NUTS (dense metric) | 3825 | 35.0 | 109299 | 3.1 | 1.000 | 0 |
+| funnel, non-centred (10d) | RWM | 10 | 1.9 | 5246 | - | 1.314 | 0 |
+| funnel, non-centred (10d) | RWM (adapted covariance) | 32 | 2.1 | 15303 | - | 1.103 | 0 |
+| funnel, non-centred (10d) | MALA | 1178 | 4.4 | 267276 | 3.4 | 1.003 | 0 |
+| funnel, non-centred (10d) | Barker | 468 | 4.9 | 94987 | 8.5 | 1.005 | 0 |
+| funnel, non-centred (10d) | HMC (L=10) | 1219 | 30.3 | 40274 | 32.8 | 1.002 | 0 |
+| funnel, non-centred (10d) | NUTS | 7236 | 47.1 | 153556 | 3.5 | 1.000 | 0 |
+| funnel, non-centred (10d) | NUTS (dense metric) | 5895 | 71.9 | 81996 | 4.5 | 1.000 | 0 |
+| eight schools, non-centred (10d) | RWM | 10 | 3.3 | 3162 | - | 1.302 | 0 |
+| eight schools, non-centred (10d) | RWM (adapted covariance) | 8 | 3.4 | 2300 | - | 1.495 | 0 |
+| eight schools, non-centred (10d) | MALA | 424 | 5.1 | 83480 | 9.4 | 1.006 | 0 |
+| eight schools, non-centred (10d) | Barker | 361 | 6.2 | 57974 | 11.1 | 1.014 | 0 |
+| eight schools, non-centred (10d) | HMC (L=10) | 14408 | 57.5 | 250508 | 2.8 | 1.013 | 0 |
+| eight schools, non-centred (10d) | NUTS | 4175 | 66.4 | 62836 | 6.9 | 1.000 | 2 |
+| eight schools, non-centred (10d) | NUTS (dense metric) | 3703 | 88.3 | 41927 | 9.6 | 1.001 | 2 |
+
+### What the two gradient-informed random walks are for
+
+MALA is the cheapest sampler per gradient evaluation on four of the five targets,
+at 1.4 gradients per effective draw on gamma-poisson and 1.9 on the
+ill-conditioned normal against 6.2 and 4.2 for NUTS. That is not a claim that it
+is the better sampler: one gradient per draw is the floor, and NUTS spends
+several to buy draws that are far less correlated, which is why it wins on wall
+clock wherever the target is hard.
+
+Both fail on the correlated normal, at around 50 gradients per effective draw
+and R-hat above 1.02, because a single step with a diagonal preconditioner
+cannot move along a ridge. NUTS with a dense metric does it in 3.1. A one-step
+proposal has no way to learn a direction, which is the structural limit of this
+family rather than a tuning problem.
+
+Barker is slower than MALA everywhere here, by a factor of two to three on
+gradients per effective draw. Its argument is not throughput. On a standard
+normal in ten dimensions at a step size three times too large, MALA's acceptance
+rate is zero, its effective sample size is 2 and it reports a standard deviation
+of 0.37 against a true value of 1; Barker is still at 0.012 acceptance, an
+effective sample size of 148, and the right answer. What it buys is that the
+failure is loud rather than silent.
 
 ## Gradient cost by backend and dimension
 
@@ -42,18 +75,18 @@ Forward mode costs one pass per parameter and wins while that number is small. E
 
 | dimension | ForwardDiff | ReverseDiff | Enzyme | finite differences |
 |---:|---:|---:|---:|---:|
-| 2 | 0.5 us | 3.3 us | 1.0 us | 1.2 us |
-| 10 | 1.1 us | 23.0 us | 1.5 us | 7.6 us |
-| 50 | 63.1 us | 414.9 us | 5.8 us | 159.5 us |
-| 200 | 4105.0 us | 7289.3 us | 64.2 us | 7490.6 us |
+| 2 | 0.5 us | 3.4 us | 1.1 us | 1.3 us |
+| 10 | 1.1 us | 24.6 us | 1.6 us | 7.9 us |
+| 50 | 62.7 us | 454.4 us | 6.0 us | 163.2 us |
+| 200 | 3913.6 us | 7276.5 us | 56.6 us | 6701.7 us |
 
 ## Sequential Monte Carlo and variational inference
 
 | method | setting | seconds | posterior mean | exact | log Z | exact log Z |
 |---|---|---:|---:|---:|---:|---:|
-| SMC | 500 particles | 0.019 | 2.0033 | 2.0000 | -80.498 | -80.507 |
-| SMC | 2000 particles | 0.081 | 2.0038 | 2.0000 | -80.536 | -80.507 |
-| SMC | 8000 particles | 0.307 | 2.0001 | 2.0000 | -80.492 | -80.507 |
-| ADVI | mean field | 0.025 | 1.9936 | 2.0000 | -80.535 (ELBO) | -80.507 |
-| ADVI | full rank | 0.019 | 1.9936 | 2.0000 | -80.535 (ELBO) | -80.507 |
-| NUTS | 4 x 1000 draws | 0.011 | 1.9907 | 2.0000 | - | -80.507 |
+| SMC | 500 particles | 0.021 | 2.0033 | 2.0000 | -80.498 | -80.507 |
+| SMC | 2000 particles | 0.067 | 2.0038 | 2.0000 | -80.536 | -80.507 |
+| SMC | 8000 particles | 0.278 | 2.0001 | 2.0000 | -80.492 | -80.507 |
+| ADVI | mean field | 0.017 | 1.9885 | 2.0000 | -80.538 (ELBO) | -80.507 |
+| ADVI | full rank | 0.017 | 1.9885 | 2.0000 | -80.538 (ELBO) | -80.507 |
+| NUTS | 4 x 1000 draws | 0.016 | 1.9907 | 2.0000 | - | -80.507 |
