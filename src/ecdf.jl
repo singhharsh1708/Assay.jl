@@ -136,22 +136,37 @@ function rank_ecdf(ranks, n_draws::Int; n_grid::Int = 100)
 end
 
 """
-    rank_uniformity_ecdf(ranks, n_draws; n_grid = 100, confidence = 0.95)
+    uniformity_ecdf(u; n_grid = 100, confidence = 0.95)
 
-Test calibration ranks for uniformity by their distribution function, returning
+Test values on `(0, 1)` for uniformity by their distribution function, returning
 `(inside, max_deviation, grid, ecdf, lower, upper)`.
 
 `inside` is whether the whole curve stayed within the simultaneous band, which
 is the decision; the rest is what a plot needs. Unlike a binned chi-square this
-uses the ordering of the ranks, so it responds to a slope, and it needs no bin
-count to be chosen.
+uses the ordering, so it responds to a slope, and it needs no bin count to be
+chosen.
+
+Calibration ranks are one source of such values and leave-one-out probability
+integral transforms are another, so the test lives here rather than inside
+either.
 """
-function rank_uniformity_ecdf(ranks, n_draws::Int; n_grid::Int = 100, confidence::Real = 0.95)
-    grid, curve = rank_ecdf(ranks, n_draws; n_grid = n_grid)
-    _, lower, upper = ecdf_simultaneous_band(length(ranks); n_grid = n_grid,
-                                             confidence = confidence)
+function uniformity_ecdf(u::AbstractVector{<:Real}; n_grid::Int = 100, confidence::Real = 0.95)
+    grid = collect(range(1 / (n_grid + 1), n_grid / (n_grid + 1); length = n_grid))
+    curve = [count(<=(z), u) / length(u) for z in grid]
+    _, lower, upper = ecdf_simultaneous_band(length(u); n_grid = n_grid, confidence = confidence)
     inside = all(lower .<= curve .<= upper)
     deviation = maximum(abs.(curve .- grid))
     return (inside = inside, max_deviation = deviation, grid = grid, ecdf = curve,
             lower = lower, upper = upper)
+end
+
+"""
+    rank_uniformity_ecdf(ranks, n_draws; n_grid = 100, confidence = 0.95)
+
+[`uniformity_ecdf`](@ref) applied to calibration ranks, scaled to `(0, 1)` the
+same way [`rank_ecdf`](@ref) does.
+"""
+function rank_uniformity_ecdf(ranks, n_draws::Int; n_grid::Int = 100, confidence::Real = 0.95)
+    u = [(r + 0.5) / (n_draws + 1) for r in ranks]
+    return uniformity_ecdf(u; n_grid = n_grid, confidence = confidence)
 end
